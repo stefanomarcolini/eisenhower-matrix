@@ -1,0 +1,121 @@
+# Development overrides — applied automatically when running `docker-compose up`.
+#
+# Adds:
+#   mailpit     — local SMTP sink; web UI at http://localhost:8025
+#   mock-oauth2 — local OIDC provider; no real Google/Microsoft credentials needed
+#
+# Changes to existing services:
+#   db           — PostgreSQL port 5432 exposed to host (for IntelliJ / DBeaver datasource)
+#   core-api     — mailpit SMTP settings; JVM remote debug on port 5005; mock OAuth2 issuer
+#   frontend-bff — mock-oauth2 provider URIs; JVM remote debug on port 5006
+#   both         — SPRING_PROFILES_ACTIVE=dev (enables CorsConfig for Vite proxy)
+#
+# IntelliJ datasource: host=localhost, port=5432, db=taskmanager, user=tm, password=changeme
+#
+# See DEVELOPMENT_ENV.md §5–§6.
+
+services:
+
+  # ── PostgreSQL — expose port to host for IDE database tools ───────────────
+  db:
+    ports:
+      - "5432:5432"   # Connect from IntelliJ / DBeaver: localhost:5432
+
+  # ── Mailpit — SMTP capture ─────────────────────────────────────────────────
+  mailpit:
+    image: axllent/mailpit:v1.17.0
+    ports:
+      - "8025:8025"   # Web UI: http://localhost:8025
+      - "1025:1025"   # SMTP — Core API sends to this port in dev
+    networks:
+      - tm-network
+    restart: unless-stopped
+
+  # ── Mock OAuth2 — local OIDC provider ─────────────────────────────────────
+  # OIDC discovery: http://localhost:9000/default/.well-known/openid-configuration
+  # Accepts any client_id/client_secret; issues self-signed tokens.
+  mock-oauth2:
+    image: ghcr.io/navikt/mock-oauth2-server:2.1.0
+    ports:
+      - "9000:8080"   # Exposed as 9000 on the host; internal port is 8080
+    networks:
+      - tm-network
+    restart: unless-stopped
+
+  # ── Core API — dev overrides ───────────────────────────────────────────────
+  core-api:
+    environment:
+      SPRING_PROFILES_ACTIVE: dev
+      # Route outbound email to Mailpit instead of a real SMTP relay
+      SMTP_HOST:        mailpit
+      SMTP_PORT:        "1025"
+      SMTP_TLS_ENABLED: "false"
+      APP_BASE_URL:     ${APP_BASE_URL:-http://localhost:8080}
+      # Allow mock-oauth2 tokens in dev — Core API's resolveProvider() maps this prefix to GOOGLE
+      APP_OAUTH2_DEV_ISSUER: http://mock-oauth2:8080
+    ports:
+      - "5005:5005"   # JVM remote debug (attach from IDE)
+    entrypoint:
+      - java
+      - -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5005
+      - -XX:+UseContainerSupport
+      - -XX:MaxRAMPercentage=75.0
+      - -jar
+      - /app.jar
+    depends_on:
+      mailpit:
+        condition: service_started
+
+  # ── Selenium standalone Chrome — E2E WebDriver ────────────────────────────
+  # RemoteWebDriver endpoint: http://localhost:4444  (host) / http://selenium:4444 (Docker)
+  # VNC viewer (no password):  http://localhost:7900
+  selenium:
+    image: selenium/standalone-chrome:latest
+    ports:
+      - "4444:4444"   # WebDriver endpoint
+      - "7900:7900"   # noVNC debug viewer
+    shm_size: 2g
+    networks:
+      - tm-network
+
+  # ── BFF — dev overrides ────────────────────────────────────────────────────
+  frontend-bff:
+    environment:
+      SPRING_PROFILES_ACTIVE:  dev
+      # Redirect OAuth2 providers to mock-oauth2-server so no real IdP credentials
+      # are needed for local development.  Any client_id/secret is accepted.
+      #
+      # IMPORTANT — two separate URL namespaces:
+      #   authorization-uri uses localhost:9000 — the BROWSER follows this redirect
+      #   token/jwk/userinfo use mock-oauth2:8080 — the BFF calls these server-to-server
+      # Using the internal Docker URL for authorization-uri would make the browser fail
+      # with "ERR_NAME_NOT_RESOLVED" because mock-oauth2 is not resolvable from the host.
+      #
+      # Google: override CommonOAuth2Provider.GOOGLE endpoints with mock URIs
+      GOOGLE_CLIENT_ID:     local-dev-client
+      GOOGLE_CLIENT_SECRET: local-dev-secret
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GOOGLE_ISSUER_URI:        http://mock-oauth2:8080/default
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GOOGLE_AUTHORIZATION_URI: ${MOCK_OAUTH2_BROWSER_BASE_URL:-http://localhost:9000}/default/authorize
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GOOGLE_TOKEN_URI:         http://mock-oauth2:8080/default/token
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GOOGLE_JWK_SET_URI:       http://mock-oauth2:8080/default/jwks
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GOOGLE_USER_INFO_URI:     http://mock-oauth2:8080/default/userinfo
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_GOOGLE_USER_NAME_ATTRIBUTE: sub
+      # Microsoft: endpoints are hardcoded in application.yml — override each one
+      MICROSOFT_CLIENT_ID:     local-dev-client
+      MICROSOFT_CLIENT_SECRET: local-dev-secret
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_MICROSOFT_AUTHORIZATION_URI: ${MOCK_OAUTH2_BROWSER_BASE_URL:-http://localhost:9000}/default/authorize
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_MICROSOFT_TOKEN_URI:         http://mock-oauth2:8080/default/token
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_MICROSOFT_JWK_SET_URI:       http://mock-oauth2:8080/default/jwks
+      SPRING_SECURITY_OAUTH2_CLIENT_PROVIDER_MICROSOFT_USER_INFO_URI:     http://mock-oauth2:8080/default/userinfo
+    ports:
+      - "5006:5006"   # JVM remote debug (attach from IDE)
+    entrypoint:
+      - java
+      - -agentlib:jdwp=transport=dt_socket,server=y,suspend=n,address=*:5006
+      - -XX:+UseContainerSupport
+      - -XX:MaxRAMPercentage=75.0
+      - -jar
+      - /app.jar
+    depends_on:
+      mock-oauth2:
+        condition: service_started

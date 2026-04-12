@@ -1,0 +1,73 @@
+databaseChangeLog:
+  - changeSet:
+      id: 005-create-indexes
+      author: system
+      changes:
+        # Primary query path: list active tasks for a user within a tenant
+        - createIndex:
+            indexName: idx_tasks_tenant_user
+            tableName: tasks
+            columns:
+              - column:
+                  name: tenant_id
+              - column:
+                  name: user_id
+            where: "deleted_at IS NULL"
+
+        # Filter active tasks by state within a tenant (scheduler, admin queries)
+        - createIndex:
+            indexName: idx_tasks_tenant_state
+            tableName: tasks
+            columns:
+              - column:
+                  name: tenant_id
+              - column:
+                  name: state
+            where: "deleted_at IS NULL"
+
+        # Partial index for the overdue scheduler — scans only active, non-completed tasks with a due_date
+        - createIndex:
+            indexName: idx_tasks_due_date
+            tableName: tasks
+            columns:
+              - column:
+                  name: due_date
+            where: "state NOT IN ('COMPLETED') AND deleted_at IS NULL"
+
+        # Login lookup — both LOCAL and OAuth2 users
+        - createIndex:
+            indexName: idx_users_tenant_email
+            tableName: users
+            columns:
+              - column:
+                  name: tenant_id
+              - column:
+                  name: email
+
+        # OIDC login matching — partial, skips LOCAL users (external_user_id IS NULL)
+        - createIndex:
+            indexName: idx_users_tenant_ext_id
+            tableName: users
+            columns:
+              - column:
+                  name: tenant_id
+              - column:
+                  name: external_user_id
+            where: "external_user_id IS NOT NULL"
+
+      rollback:
+        - dropIndex:
+            indexName: idx_tasks_tenant_user
+            tableName: tasks
+        - dropIndex:
+            indexName: idx_tasks_tenant_state
+            tableName: tasks
+        - dropIndex:
+            indexName: idx_tasks_due_date
+            tableName: tasks
+        - dropIndex:
+            indexName: idx_users_tenant_email
+            tableName: users
+        - dropIndex:
+            indexName: idx_users_tenant_ext_id
+            tableName: users

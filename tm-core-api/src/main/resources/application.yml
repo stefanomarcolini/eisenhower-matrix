@@ -1,0 +1,75 @@
+# tm-core-api — Main application configuration
+# Secrets are never hardcoded here — all sensitive values come from environment variables.
+# See ENV_VARS.md in tm-documentation for the full reference.
+
+spring:
+  datasource:
+    url: jdbc:postgresql://${DB_HOST}:${DB_PORT:5432}/${DB_NAME}
+    username: ${DB_USERNAME}
+    password: ${DB_PASSWORD}
+    hikari:
+      maximum-pool-size: 10
+
+  liquibase:
+    # tm-db-schema owns ALL migrations — Core API must NEVER run them.
+    # Running migrations here would create a race condition with the init container.
+    enabled: false
+
+  jpa:
+    hibernate:
+      # Liquibase owns the schema — Hibernate validates but never modifies it.
+      # Any mismatch between entities and DB schema will fail at startup (fail-fast).
+      ddl-auto: validate
+    show-sql: false  # Never log SQL in any shared environment (CODING_PATTERNS.md §16)
+
+  mail:
+    host: ${SMTP_HOST}
+    port: ${SMTP_PORT:587}
+    username: ${SMTP_USERNAME:}
+    password: ${SMTP_PASSWORD:}
+    properties:
+      mail.smtp.starttls.enable: ${SMTP_TLS_ENABLED:true}
+
+  task:
+    scheduling:
+      pool:
+        size: 2  # Overdue-task updater + token cleanup (CODING_PATTERNS.md §7)
+
+# Application-specific configuration (bound via @ConfigurationProperties or @Value)
+app:
+  jwt:
+    secret: ${INTERNAL_JWT_SECRET}
+    expiry-minutes: ${JWT_EXPIRY_MINUTES:15}
+  mfa:
+    encryption-key: ${MFA_ENCRYPTION_KEY}
+  base-url: ${APP_BASE_URL}
+  password:
+    max-age-days: ${PASSWORD_MAX_AGE_DAYS:90}
+    age-warning-days: ${PASSWORD_AGE_WARNING_DAYS:80}
+    reset-token-expiry-hours: ${PASSWORD_RESET_TOKEN_EXPIRY_HOURS:1}
+  email:
+    from-address: ${EMAIL_FROM_ADDRESS}
+    from-name: ${EMAIL_FROM_NAME}
+  oauth2:
+    # Dev-only: when set, OIDC tokens whose issuer starts with this prefix are accepted
+    # and mapped to AuthProvider.GOOGLE. Set via APP_OAUTH2_DEV_ISSUER in docker-compose.override.yml.
+    # Must be empty in production.
+    dev-issuer: ${APP_OAUTH2_DEV_ISSUER:}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+server:
+  port: ${SERVER_PORT:8080}
+  error:
+    # Never send stack traces, exception class names, or raw messages to clients.
+    # See CODING_PATTERNS.md §16.
+    include-stacktrace: never
+    include-message: never
+    include-exception: false

@@ -1,0 +1,8 @@
+# tm-core-api — Dev profile overrides (SPRING_PROFILES_ACTIVE=dev)
+# Applied on top of application.yml in local development environments.
+
+logging:
+  level:
+    com.tm: DEBUG
+    # Remove the Spring Security line once the auth flow is confirmed working.
+    org.springframework.security: DEBUG

@@ -1,0 +1,24 @@
+version: 2
+updates:
+  # GitHub Actions — pins action versions used in e2e.yml and release.yml
+  - package-ecosystem: "github-actions"
+    directory: "/"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  # Maven — e2e Selenium test suite dependencies
+  - package-ecosystem: "maven"
+    directory: "/e2e"
+    schedule:
+      interval: "weekly"
+    open-pull-requests-limit: 10
+
+  # NOTE: docker ecosystem intentionally omitted.
+  # tm-orchestrator owns no Dockerfile; application images are built and pushed
+  # by the individual service repos (tm-core-api, tm-ui-bff, tm-db-schema).
+  # Adding docker here causes Dependabot to fail with
+  # "No Dockerfiles nor Kubernetes YAML found in /".
+  # Base image versions (postgres, redis) in docker-compose.yml are managed
+  # manually and updated intentionally.
+

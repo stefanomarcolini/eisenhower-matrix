@@ -1,0 +1,19 @@
+# Maven
+target/
+
+# Environment — never commit secrets
+.env
+
+# IDE
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

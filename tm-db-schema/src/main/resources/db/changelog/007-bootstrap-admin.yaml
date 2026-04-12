@@ -1,0 +1,75 @@
+databaseChangeLog:
+  - changeSet:
+      id: 007-bootstrap-admin
+      author: system
+      # Runs in ALL environments (prod and dev). Every deployment needs the bootstrap admin.
+      context: "prod,dev"
+      # BOOTSTRAP_ADMIN_BCRYPT_HASH is environment-specific — the rendered changeset content
+      # legitimately differs between environments, so its checksum will vary. Suppress the
+      # "checksum mismatch" error that would otherwise block startup after a hash rotation.
+      validCheckSum:
+        - ANY
+      changes:
+        # Default tenant — fixed UUID so subsequent deployments are idempotent
+        - insert:
+            tableName: tenants
+            columns:
+              - column:
+                  name: id
+                  value: "00000000-0000-0000-0000-000000000001"
+              - column:
+                  name: name
+                  value: "Default"
+              - column:
+                  name: created_at
+                  valueComputed: "now()"
+
+        # Bootstrap ADMIN user
+        # BOOTSTRAP_ADMIN_BCRYPT_HASH is a Liquibase substitution variable injected via env var.
+        # Change the password immediately after first login via Settings → Security.
+        - insert:
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  value: "00000000-0000-0000-0000-000000000002"
+              - column:
+                  name: tenant_id
+                  value: "00000000-0000-0000-0000-000000000001"
+              - column:
+                  name: email
+                  value: "admin@task-manager.local"
+              - column:
+                  name: auth_provider
+                  value: "LOCAL"
+              - column:
+                  name: password_hash
+                  value: "${BOOTSTRAP_ADMIN_BCRYPT_HASH}"
+              - column:
+                  name: role_id
+                  # Fixed UUID from changeset 002 — avoids a subquery that would fail
+                  # if the roles table is renamed or the seed row order changes.
+                  value: "00000000-0000-0000-0000-000000000011"
+              - column:
+                  name: is_mfa_enabled
+                  valueBoolean: false
+              - column:
+                  name: theme
+                  value: "LIGHT"
+              - column:
+                  name: password_changed_at
+                  valueComputed: "now()"
+              - column:
+                  name: created_at
+                  valueComputed: "now()"
+              - column:
+                  name: updated_at
+                  valueComputed: "now()"
+
+      rollback:
+        - delete:
+            tableName: users
+            where: "id = '00000000-0000-0000-0000-000000000002'"
+        - delete:
+            tableName: tenants
+            where: "id = '00000000-0000-0000-0000-000000000001'"

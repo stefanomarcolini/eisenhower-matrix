@@ -1,0 +1,23 @@
+# tm-ui-bff — Test profile overrides (@ActiveProfiles("test"))
+# Applied on top of application.yml in the test JVM.
+# Testcontainers provides the real Redis instance; host/port are wired via @DynamicPropertySource.
+
+spring:
+  security:
+    oauth2:
+      client:
+        registration:
+          # Use recognisable fake credentials — Spring creates the ClientRegistration objects
+          # but no actual OAuth2 flow is initiated in tests (WireMock handles Core API stubs).
+          google:
+            client-id: test-google-client-id
+            client-secret: test-google-client-secret
+            scope: openid,email,profile
+          microsoft:
+            client-id: test-microsoft-client-id
+            client-secret: test-microsoft-client-secret
+            scope: openid,email,profile
+
+app:
+  core-api-base-url: http://localhost:${wiremock.server.port:8089}
+  default-tenant-id: 00000000-0000-0000-0000-000000000001

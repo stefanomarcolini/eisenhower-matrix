@@ -1,0 +1,310 @@
+name: E2E Tests
+
+# Uses latest GHCR images via docker-compose.
+# Requires either package-level Actions access to the private GHCR packages,
+# or GHCR_USERNAME / GHCR_TOKEN configured for cross-repo reads.
+
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+concurrency:
+  group: orchestrator-e2e
+  cancel-in-progress: true
+
+jobs:
+  e2e:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    env:
+      FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+    permissions:
+      contents: read
+      packages: read
+
+    steps:
+      - uses: actions/checkout@v5
+
+      # Generate a self-contained CI .env. Repository secrets still override the
+      # defaults, but a standard E2E run does not require app runtime secrets.
+      - name: Create .env
+        env:
+          SECRET_DB_NAME: ${{ secrets.DB_NAME }}
+          SECRET_DB_USERNAME: ${{ secrets.DB_USERNAME }}
+          SECRET_DB_PASSWORD: ${{ secrets.DB_PASSWORD }}
+          SECRET_INTERNAL_JWT_SECRET: ${{ secrets.INTERNAL_JWT_SECRET }}
+          SECRET_MFA_ENCRYPTION_KEY: ${{ secrets.MFA_ENCRYPTION_KEY }}
+          SECRET_E2E_ADMIN_EMAIL: ${{ secrets.E2E_ADMIN_EMAIL }}
+          SECRET_E2E_ADMIN_PASSWORD: ${{ secrets.E2E_ADMIN_PASSWORD }}
+          SECRET_BOOTSTRAP_ADMIN_BCRYPT_HASH: ${{ secrets.BOOTSTRAP_ADMIN_BCRYPT_HASH }}
+        run: |
+          set -e
+
+          DB_NAME_VALUE="${SECRET_DB_NAME:-taskmanager}"
+          DB_USERNAME_VALUE="${SECRET_DB_USERNAME:-tm_user}"
+          DB_PASSWORD_VALUE="${SECRET_DB_PASSWORD:-tm_password}"
+          # CI default: Base64 of "ci-only-jwt-secret-for-testing!!" (32 bytes = 256 bits).
+          # Must decode to ≥ 32 bytes; 32 Base64 chars (24 bytes) cause KeyLengthException.
+          INTERNAL_JWT_SECRET_VALUE="${SECRET_INTERNAL_JWT_SECRET:-Y2ktb25seS1qd3Qtc2VjcmV0LWZvci10ZXN0aW5nISE=}"
+          MFA_ENCRYPTION_KEY_VALUE="${SECRET_MFA_ENCRYPTION_KEY:-MDEyMzQ1Njc4OWFiY2RlZjAxMjM0NTY3ODlhYmNkZWY=}"
+          E2E_ADMIN_EMAIL_VALUE="${SECRET_E2E_ADMIN_EMAIL:-admin@task-manager.local}"
+          E2E_ADMIN_PASSWORD_VALUE="${SECRET_E2E_ADMIN_PASSWORD:-Admin1234!}"
+          BOOTSTRAP_ADMIN_BCRYPT_HASH_VALUE="${SECRET_BOOTSTRAP_ADMIN_BCRYPT_HASH:-}"
+
+          if [ -z "$BOOTSTRAP_ADMIN_BCRYPT_HASH_VALUE" ]; then
+            BOOTSTRAP_ADMIN_BCRYPT_HASH_VALUE=$(docker run --rm httpd:2.4-alpine \
+              htpasswd -bnBC 12 "" "$E2E_ADMIN_PASSWORD_VALUE" | tr -d ':\n')
+          fi
+
+          # Accept either canonical ($2y$...) or already-escaped ($$2y$$...) secrets,
+          # then emit an escaped form for docker compose env interpolation.
+          BOOTSTRAP_ADMIN_BCRYPT_HASH_CANONICAL=$(printf '%s' "$BOOTSTRAP_ADMIN_BCRYPT_HASH_VALUE" | sed 's/^\$\$/\$/')
+          # Escape dollars for docker compose without using bash ${var//$/$$} replacement.
+          # In bash replacement strings, $$ expands to the shell PID, corrupting bcrypt hashes.
+          BOOTSTRAP_ADMIN_BCRYPT_HASH_ESCAPED=$(printf '%s' "$BOOTSTRAP_ADMIN_BCRYPT_HASH_CANONICAL" | sed 's/\$/$$/g')
+
+          cat > .env <<EOF
+          DB_HOST=db
+          DB_PORT=5432
+          DB_NAME=$DB_NAME_VALUE
+          DB_USERNAME=$DB_USERNAME_VALUE
+          DB_PASSWORD=$DB_PASSWORD_VALUE
+          INTERNAL_JWT_SECRET=$INTERNAL_JWT_SECRET_VALUE
+          JWT_EXPIRY_MINUTES=15
+          MFA_ENCRYPTION_KEY=$MFA_ENCRYPTION_KEY_VALUE
+          EMAIL_FROM_ADDRESS=noreply@task-manager.io
+          SMTP_HOST=mailpit
+          SMTP_PORT=1025
+          SMTP_TLS_ENABLED=false
+          APP_BASE_URL=http://frontend-bff:8080
+          BOOTSTRAP_ADMIN_EMAIL=$E2E_ADMIN_EMAIL_VALUE
+          REDIS_HOST=redis
+          REDIS_PORT=6379
+          REDIS_PASSWORD=
+          SESSION_TIMEOUT_MINUTES=30
+          CORE_API_BASE_URL=http://core-api:8080
+          MOCK_OAUTH2_BROWSER_BASE_URL=http://mock-oauth2:8080
+          GOOGLE_CLIENT_ID=local-dev-client
+          GOOGLE_CLIENT_SECRET=local-dev-secret
+          MICROSOFT_CLIENT_ID=local-dev-client
+          MICROSOFT_CLIENT_SECRET=local-dev-secret
+          SPRING_PROFILES_ACTIVE=dev
+          LIQUIBASE_CONTEXTS=prod
+          BOOTSTRAP_ADMIN_BCRYPT_HASH=$BOOTSTRAP_ADMIN_BCRYPT_HASH_ESCAPED
+          EOF
+
+          {
+            echo "E2E_ADMIN_EMAIL=$E2E_ADMIN_EMAIL_VALUE"
+            echo "E2E_ADMIN_PASSWORD=$E2E_ADMIN_PASSWORD_VALUE"
+          } >> "$GITHUB_ENV"
+
+      - name: Login to GHCR
+        uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          # Prefer dedicated cross-repo reader credentials.
+          # Fallback to the repository token when package-level Actions access is granted.
+          username: ${{ vars.GHCR_USERNAME != '' && vars.GHCR_USERNAME || github.actor }}
+          password: ${{ secrets.GHCR_TOKEN != '' && secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+
+      - name: Verify GHCR package access
+        run: |
+          set -e
+          for image in tm-db-schema tm-core-api tm-ui-bff; do
+            if ! docker manifest inspect "ghcr.io/sm-task-manager/${image}:latest" >/dev/null 2>&1; then
+              echo "::error::Cannot access ghcr.io/sm-task-manager/${image}:latest."
+              echo "::error::Configure GHCR_USERNAME action variable and GHCR_TOKEN secret with read:packages, or grant this repository Actions access in the package settings."
+              exit 1
+            fi
+          done
+
+      - name: Pull latest images
+        run: docker compose pull --quiet
+
+      # Override file adds mailpit + mock-oauth2 + dev SMTP/OAuth2 settings
+      - name: Start stack
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
+
+      - name: Wait for BFF health
+        run: |
+          echo "Waiting for frontend-bff to be healthy..."
+          for i in $(seq 1 30); do
+            STATUS=$(docker inspect --format='{{.State.Health.Status}}' \
+              "$(docker compose ps -q frontend-bff)" 2>/dev/null || echo "starting")
+            echo "  attempt $i: $STATUS"
+            if [ "$STATUS" = "healthy" ]; then
+              echo "Stack is healthy."
+              exit 0
+            fi
+            sleep 5
+          done
+          echo "Timed out waiting for stack."
+          docker compose logs
+          exit 1
+
+      - name: Auth contract smoke test
+        run: |
+          set -euo pipefail
+
+          COOKIE_JAR=$(mktemp)
+          REGISTER_BODY=$(mktemp)
+          SESSION_BODY=$(mktemp)
+          TASK_BODY=$(mktemp)
+          EMAIL="smoke-${GITHUB_RUN_ID:-local}-${GITHUB_RUN_ATTEMPT:-0}@test.io"
+          TENANT_ID="00000000-0000-0000-0000-000000000001"
+
+          echo "Verifying core services are healthy before auth smoke..."
+          for i in $(seq 1 24); do
+            BFF_STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$(docker compose ps -q frontend-bff)" 2>/dev/null || echo "starting")
+            CORE_STATUS=$(docker inspect --format='{{.State.Health.Status}}' "$(docker compose ps -q core-api)" 2>/dev/null || echo "starting")
+            echo "  health attempt $i: frontend-bff=$BFF_STATUS core-api=$CORE_STATUS"
+            if [ "$BFF_STATUS" = "healthy" ] && [ "$CORE_STATUS" = "healthy" ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          echo "Waiting for /auth/session to respond before registration..."
+          for i in $(seq 1 24); do
+            SESSION_WARMUP_STATUS=$(curl -sS --connect-timeout 3 --max-time 10 -o /dev/null -w "%{http_code}" http://localhost:8080/auth/session || echo "000")
+            echo "  warmup attempt $i: /auth/session -> $SESSION_WARMUP_STATUS"
+            if [ "$SESSION_WARMUP_STATUS" = "200" ]; then
+              break
+            fi
+            sleep 5
+          done
+
+          echo "Registering smoke user: $EMAIL"
+          REGISTER_STATUS=""
+          for i in $(seq 1 12); do
+            REGISTER_STATUS=$(curl -sS --connect-timeout 3 --max-time 20 -o "$REGISTER_BODY" -w "%{http_code}" \
+              -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+              -X POST http://localhost:8080/auth/local/register \
+              -H "Content-Type: application/json" \
+              --data "{\"email\":\"$EMAIL\",\"password\":\"Password1!\",\"tenantId\":\"$TENANT_ID\"}" || echo "000")
+
+            # Transient startup window: BFF can be healthy before downstream register path is ready.
+            if [ "$REGISTER_STATUS" = "200" ]; then
+              break
+            fi
+
+            if [[ "$REGISTER_STATUS" =~ ^5[0-9][0-9]$ ]] || [ "$REGISTER_STATUS" = "000" ]; then
+              echo "  register attempt $i failed with HTTP $REGISTER_STATUS; retrying..."
+              cat "$REGISTER_BODY" || true
+              sleep 5
+              continue
+            fi
+
+            # 4xx means contract/input issue, not a warm-up race.
+            break
+          done
+
+          [ "$REGISTER_STATUS" = "200" ] || {
+            echo "::error::Registration smoke call failed with HTTP $REGISTER_STATUS"
+            cat "$REGISTER_BODY"
+            echo "::group::frontend-bff logs"
+            docker compose logs --tail 120 frontend-bff || true
+            echo "::endgroup::"
+            echo "::group::core-api logs"
+            docker compose logs --tail 120 core-api || true
+            echo "::endgroup::"
+            exit 1
+          }
+
+          SESSION_STATUS=$(curl -sS -o "$SESSION_BODY" -w "%{http_code}" \
+            -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+            http://localhost:8080/auth/session)
+          [ "$SESSION_STATUS" = "200" ] || {
+            echo "::error::Session smoke call failed with HTTP $SESSION_STATUS"
+            cat "$SESSION_BODY"
+            exit 1
+          }
+
+          if ! grep -q '"isAuthenticated":true' "$SESSION_BODY"; then
+            echo "::error::Runtime auth contract mismatch: /auth/session is not authenticated immediately after register"
+            cat "$SESSION_BODY"
+            exit 1
+          fi
+
+          XSRF_TOKEN=$(awk '($6 == "XSRF-TOKEN") { print $7 }' "$COOKIE_JAR" | tail -n 1)
+          [ -n "$XSRF_TOKEN" ] || {
+            echo "::error::Runtime auth contract mismatch: XSRF-TOKEN cookie was not materialised after register + /auth/session"
+            cat "$SESSION_BODY"
+            exit 1
+          }
+
+          TASK_STATUS=$(curl -sS -o "$TASK_BODY" -w "%{http_code}" \
+            -c "$COOKIE_JAR" -b "$COOKIE_JAR" \
+            -X POST http://localhost:8080/api/v1/tasks \
+            -H "Content-Type: application/json" \
+            -H "X-XSRF-TOKEN: $XSRF_TOKEN" \
+            --data '{"title":"smoke task","importance":"HIGH","urgency":"HIGH","status":"PLANNED"}')
+          [ "$TASK_STATUS" = "201" ] || {
+            echo "::error::Runtime auth contract mismatch: protected task creation failed with HTTP $TASK_STATUS"
+            cat "$TASK_BODY"
+            exit 1
+          }
+
+          echo "Auth contract smoke test passed."
+
+      - name: Wait for Selenium ready
+        run: |
+          echo "Waiting for Selenium Grid to be ready..."
+          for i in $(seq 1 30); do
+            BODY=$(curl -fsS http://localhost:4444/status 2>/dev/null || curl -fsS http://localhost:4444/wd/hub/status 2>/dev/null || true)
+            if echo "$BODY" | grep -Eq '"ready"[[:space:]]*:[[:space:]]*true'; then
+              echo "Selenium ready."
+              exit 0
+            fi
+            echo "  attempt $i: not ready yet"
+            sleep 3
+          done
+          echo "Timed out waiting for Selenium."
+          echo "$BODY"
+          exit 1
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: temurin
+          cache: maven
+
+      # Selenium E2E suite — added in Session 16
+      # APP_BASE_URL uses frontend-bff hostname so reset-password links in emails
+      # are navigable by the Selenium browser inside the Docker network.
+      - name: Run E2E tests
+        run: |
+          mvn --no-transfer-progress verify \
+            -De2e.app.url=http://frontend-bff:8080 \
+            -De2e.api.url=http://localhost:8080 \
+            -De2e.selenium.url=http://localhost:4444 \
+            -De2e.mailpit.url=http://localhost:8025 \
+            -De2e.admin.email="$E2E_ADMIN_EMAIL" \
+            -De2e.admin.password="$E2E_ADMIN_PASSWORD"
+        working-directory: e2e
+
+      - name: Print diagnostics on failure
+        if: failure()
+        run: |
+          echo "=== docker compose ps ==="
+          docker compose ps || true
+          echo "=== docker compose logs (tail 200) ==="
+          docker compose logs --tail 200 || true
+          if [ -d e2e/target/surefire-reports ]; then
+            echo "=== surefire reports ==="
+            ls -la e2e/target/surefire-reports || true
+            for f in e2e/target/surefire-reports/*.txt; do
+              [ -f "$f" ] || continue
+              echo "--- $f ---"
+              tail -n 120 "$f" || true
+            done
+          fi
+
+      - name: Tear down stack
+        if: always()
+        run: docker compose -f docker-compose.yml -f docker-compose.override.yml down -v
+

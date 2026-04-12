@@ -1,0 +1,27 @@
+# Maven
+target/
+
+# Local debugging traces — not part of application code or CI artifacts
+debug-artifacts/
+
+# Node / npm
+node_modules/
+frontend-client/node_modules/
+frontend-client/dist/
+
+# Environment — never commit secrets
+.env
+
+# IDE
+.idea/
+*.iml
+.classpath
+.project
+.settings/
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

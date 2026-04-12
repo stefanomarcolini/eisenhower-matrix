@@ -1,0 +1,49 @@
+apiVersion: batch/v1
+kind: Job
+metadata:
+  name: {{ include "task-manager.fullname" . }}-db-migrations
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: db-migrations
+  annotations:
+    # Run this Job before any Deployment is created / updated.
+    # On success the Job is deleted; on failure the release rolls back.
+    "helm.sh/hook": pre-install,pre-upgrade
+    "helm.sh/hook-weight": "-5"
+    "helm.sh/hook-delete-policy": before-hook-creation,hook-succeeded
+spec:
+  # A single attempt is sufficient — Liquibase is idempotent (changeset checksums
+  # prevent double-application). On failure the Job stays for debugging.
+  backoffLimit: 1
+  template:
+    metadata:
+      labels:
+        {{- include "task-manager.selectorLabels" . | nindent 8 }}
+        app.kubernetes.io/component: db-migrations
+    spec:
+      restartPolicy: Never
+      containers:
+        - name: db-migrations
+          image: "{{ .Values.image.registry }}/{{ .Values.dbMigrations.image }}:{{ include "task-manager.imageTag" . }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          envFrom:
+            - configMapRef:
+                name: {{ include "task-manager.fullname" . }}-config
+          env:
+            - name: DB_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "task-manager.dbSecretName" . }}
+                  key: DB_PASSWORD
+            - name: BOOTSTRAP_ADMIN_BCRYPT_HASH
+              valueFrom:
+                secretKeyRef:
+                  name: {{ include "task-manager.fullname" . }}-secrets
+                  key: BOOTSTRAP_ADMIN_BCRYPT_HASH
+          resources:
+            requests:
+              cpu: 100m
+              memory: 256Mi
+            limits:
+              cpu: 500m
+              memory: 512Mi

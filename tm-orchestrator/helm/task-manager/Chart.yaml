@@ -1,0 +1,21 @@
+apiVersion: v2
+name: task-manager
+description: >
+  Task Manager full-stack application.
+  Deploys the Core API, BFF (React SPA + Spring Boot), and a Liquibase
+  migration Job. PostgreSQL and Redis are expected to be external — supply
+  connection details via values or an existingSecret reference.
+type: application
+
+# version and appVersion are overwritten by release.yml on every semver tag push.
+# Do not edit these manually — use `git tag v<major>.<minor>.<patch>` instead.
+version: 0.1.0
+appVersion: "v0.1.0"
+
+keywords:
+  - task-manager
+  - spring-boot
+  - react
+
+sources:
+  - https://github.com/sm-task-manager/tm-orchestrator

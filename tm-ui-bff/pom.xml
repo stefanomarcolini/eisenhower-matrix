@@ -1,0 +1,93 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.tm</groupId>
+    <artifactId>eisenhower-matrix-repository</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>tm-ui-bff-parent</artifactId>
+  <packaging>pom</packaging>
+  <description>Task Manager — BFF parent (Spring Boot BFF + React SPA)</description>
+
+  <modules>
+    <module>bff-service</module>
+  </modules>
+
+  <properties>
+    <java.version>17</java.version>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <!-- Versions not managed by the Spring Boot BOM -->
+    <bucket4j.version>8.7.0</bucket4j.version>
+
+    <!-- Override managed Testcontainers — same reason as tm-core-api (CODING_PATTERNS.md §10) -->
+    <testcontainers.version>2.0.4</testcontainers.version>
+
+    <!-- Redis image tag — override at CI time via -Dredis.test.image=redis:8-alpine -->
+    <redis.test.image>redis:7-alpine</redis.test.image>
+
+    <jackson-bom.version>3.1.0</jackson-bom.version>
+    <tomcat-embed-core.version>11.0.20</tomcat-embed-core.version>
+    <spring-security-web.version>7.0.4</spring-security-web.version>
+    <commons-compress>1.28.0</commons-compress>
+    <commons-io.version>2.21.0</commons-io.version>
+    <wiremock-spring-boot.version>4.2.1</wiremock-spring-boot.version>
+    <testcontainers-junit-jupiter.version>1.21.4</testcontainers-junit-jupiter.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.springframework.security</groupId>
+        <artifactId>spring-security-web</artifactId>
+        <version>${spring-security-web.version}</version>
+        <scope>compile</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-core</artifactId>
+        <version>${tomcat-embed-core.version}</version>
+        <scope>compile</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.testcontainers</groupId>
+        <artifactId>junit-jupiter</artifactId>
+        <version>${testcontainers-junit-jupiter.version}</version>
+        <scope>test</scope>
+      </dependency>
+      <dependency>
+        <groupId>tools.jackson</groupId>
+        <artifactId>jackson-bom</artifactId>
+        <version>${jackson-bom.version}</version>
+        <type>pom</type>
+        <scope>import</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.apache.commons</groupId>
+        <artifactId>commons-compress</artifactId>
+        <version>${commons-compress}</version>
+        <scope>compile</scope>
+      </dependency>
+      <dependency>
+        <groupId>commons-io</groupId>
+        <artifactId>commons-io</artifactId>
+        <version>${commons-io.version}</version>
+        <scope>compile</scope>
+      </dependency>
+      <dependency>
+        <groupId>org.wiremock.integrations</groupId>
+        <artifactId>wiremock-spring-boot</artifactId>
+        <version>${wiremock-spring-boot.version}</version>
+        <scope>test</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+</project>

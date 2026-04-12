@@ -1,0 +1,146 @@
+# Task Manager — production service definitions.
+#
+# All configuration is supplied via .env (copy .env.example → .env and fill values).
+# Images are pulled from GHCR; build them locally with:
+#   docker build -t ghcr.io/sm-task-manager/<name>:latest .
+# inside each sub-repo before running `docker-compose up`.
+#
+# See DEVELOPMENT_ENV.md §6 for the full local startup guide.
+# See INFRASTRUCTURE_SPEC.md §2 for startup-dependency rationale.
+
+networks:
+  tm-network:
+    driver: bridge
+
+volumes:
+  postgres-data:
+  redis-data:
+
+services:
+
+  # ── PostgreSQL ─────────────────────────────────────────────────────────────
+  db:
+    image: postgres:17.2-alpine
+    environment:
+      POSTGRES_DB:       ${DB_NAME}
+      POSTGRES_USER:     ${DB_USERNAME}
+      POSTGRES_PASSWORD: ${DB_PASSWORD}
+    volumes:
+      - postgres-data:/var/lib/postgresql/data
+    networks:
+      - tm-network
+    healthcheck:
+      # $$POSTGRES_USER — double $ escapes the variable inside the compose shell expansion
+      test: ["CMD-SHELL", "pg_isready -U $$POSTGRES_USER -d $$POSTGRES_DB"]
+      interval: 5s
+      timeout: 5s
+      retries: 10
+    restart: unless-stopped
+
+  # ── Redis ──────────────────────────────────────────────────────────────────
+  redis:
+    image: redis:7.2.4-alpine
+    # AOF persistence — survives container restarts without data loss
+    command: ["redis-server", "--appendonly", "yes"]
+    volumes:
+      - redis-data:/data
+    networks:
+      - tm-network
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    restart: unless-stopped
+
+  # ── DB migrations (init container — exits 0 after Liquibase completes) ─────
+  # core-api depends on service_completed_successfully so it never starts
+  # before the schema is fully applied.
+  db-migrations:
+    image: ghcr.io/sm-task-manager/tm-db-schema:latest
+    environment:
+      DB_HOST:                     ${DB_HOST:-db}
+      DB_PORT:                     ${DB_PORT:-5432}
+      DB_NAME:                     ${DB_NAME}
+      DB_USERNAME:                 ${DB_USERNAME}
+      DB_PASSWORD:                 ${DB_PASSWORD}
+      LIQUIBASE_CONTEXTS:          ${LIQUIBASE_CONTEXTS:-prod}
+      BOOTSTRAP_ADMIN_BCRYPT_HASH: ${BOOTSTRAP_ADMIN_BCRYPT_HASH}
+    networks:
+      - tm-network
+    depends_on:
+      db:
+        condition: service_healthy   # waits for pg_isready to pass
+
+  # ── Core API ───────────────────────────────────────────────────────────────
+  core-api:
+    image: ghcr.io/sm-task-manager/tm-core-api:latest
+    environment:
+      DB_HOST:                           ${DB_HOST:-db}
+      DB_PORT:                           ${DB_PORT:-5432}
+      DB_NAME:                           ${DB_NAME}
+      DB_USERNAME:                       ${DB_USERNAME}
+      DB_PASSWORD:                       ${DB_PASSWORD}
+      INTERNAL_JWT_SECRET:               ${INTERNAL_JWT_SECRET}
+      JWT_EXPIRY_MINUTES:                ${JWT_EXPIRY_MINUTES:-15}
+      MFA_ENCRYPTION_KEY:                ${MFA_ENCRYPTION_KEY}
+      PASSWORD_MAX_AGE_DAYS:             ${PASSWORD_MAX_AGE_DAYS:-90}
+      PASSWORD_AGE_WARNING_DAYS:         ${PASSWORD_AGE_WARNING_DAYS:-80}
+      PASSWORD_RESET_TOKEN_EXPIRY_HOURS: ${PASSWORD_RESET_TOKEN_EXPIRY_HOURS:-1}
+      EMAIL_FROM_ADDRESS:                ${EMAIL_FROM_ADDRESS}
+      EMAIL_FROM_NAME:                   ${EMAIL_FROM_NAME:-Task Manager}
+      SMTP_HOST:                         ${SMTP_HOST}
+      SMTP_PORT:                         ${SMTP_PORT:-587}
+      SMTP_USERNAME:                     ${SMTP_USERNAME:-}
+      SMTP_PASSWORD:                     ${SMTP_PASSWORD:-}
+      SMTP_TLS_ENABLED:                  ${SMTP_TLS_ENABLED:-true}
+      APP_BASE_URL:                      ${APP_BASE_URL}
+      SPRING_PROFILES_ACTIVE:            ${SPRING_PROFILES_ACTIVE:-prod}
+    networks:
+      - tm-network
+    depends_on:
+      db:
+        condition: service_healthy                # Postgres ready to accept connections
+      db-migrations:
+        condition: service_completed_successfully # Liquibase finished, schema in place
+    healthcheck:
+      # Runtime image includes wget for this healthcheck probe.
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped
+
+  # ── BFF — React SPA + Spring Boot session proxy ────────────────────────────
+  # Only service that exposes a host port; all other services communicate
+  # over the internal tm-network bridge.
+  frontend-bff:
+    image: ghcr.io/sm-task-manager/tm-ui-bff:latest
+    ports:
+      - "8080:8080"
+    environment:
+      REDIS_HOST:              ${REDIS_HOST:-redis}
+      REDIS_PORT:              ${REDIS_PORT:-6379}
+      REDIS_PASSWORD:          ${REDIS_PASSWORD:-}
+      SESSION_TIMEOUT_MINUTES: ${SESSION_TIMEOUT_MINUTES:-30}
+      CORE_API_BASE_URL:       ${CORE_API_BASE_URL:-http://core-api:8080}
+      GOOGLE_CLIENT_ID:        ${GOOGLE_CLIENT_ID:-disabled}
+      GOOGLE_CLIENT_SECRET:    ${GOOGLE_CLIENT_SECRET:-disabled}
+      MICROSOFT_CLIENT_ID:     ${MICROSOFT_CLIENT_ID:-disabled}
+      MICROSOFT_CLIENT_SECRET: ${MICROSOFT_CLIENT_SECRET:-disabled}
+      SPRING_PROFILES_ACTIVE:  ${SPRING_PROFILES_ACTIVE:-prod}
+    networks:
+      - tm-network
+    depends_on:
+      core-api:
+        condition: service_healthy   # Core API fully ready before BFF accepts traffic
+      redis:
+        condition: service_healthy   # Session store available before BFF starts
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://localhost:8080/actuator/health | grep -q UP"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+      start_period: 30s
+    restart: unless-stopped

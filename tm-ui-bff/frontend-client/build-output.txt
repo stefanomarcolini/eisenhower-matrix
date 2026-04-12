@@ -1,0 +1,7 @@
+
+> frontend-client@1.0.0 build
+> tsc && vite build
+
+src/components/MfaEnrollDialog.tsx(2,20): error TS7016: Could not find a declaration file for module 'qrcode'. 'C:/home/dev/claude/task-manager/tm-ui-bff/frontend-client/node_modules/qrcode/lib/index.js' implicitly has an 'any' type.
+  Try `npm i --save-dev @types/qrcode` if it exists or add a new declaration (.d.ts) file containing `declare module 'qrcode';`
+src/components/MfaEnrollDialog.tsx(40,14): error TS7006: Parameter 'dataUrl' implicitly has an 'any' type.

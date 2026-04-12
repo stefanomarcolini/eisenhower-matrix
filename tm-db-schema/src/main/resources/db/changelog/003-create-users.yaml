@@ -1,0 +1,118 @@
+databaseChangeLog:
+  - changeSet:
+      id: 003-create-users
+      author: system
+      changes:
+        - createTable:
+            tableName: users
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: tenant_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_users_tenant
+                    references: tenants(id)
+              - column:
+                  name: email
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: display_name
+                  type: VARCHAR(255)
+              - column:
+                  # Immutable after creation. LOCAL | GOOGLE | MICROSOFT
+                  name: auth_provider
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  # sub claim from IdP. NULL for LOCAL users.
+                  name: external_user_id
+                  type: VARCHAR(255)
+              - column:
+                  # BCrypt hash. NULL for OAuth2 users.
+                  name: password_hash
+                  type: VARCHAR(255)
+              - column:
+                  # NULL for OAuth2 users. Set on registration and every password change.
+                  name: password_changed_at
+                  type: TIMESTAMPTZ
+              - column:
+                  # Updated on every successful login.
+                  name: last_login_at
+                  type: TIMESTAMPTZ
+              - column:
+                  name: role_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_users_role
+                    references: roles(id)
+              - column:
+                  name: is_mfa_enabled
+                  type: BOOLEAN
+                  defaultValueBoolean: false
+                  constraints:
+                    nullable: false
+              - column:
+                  # AES-256 encrypted TOTP secret. NULL when MFA is disabled.
+                  name: mfa_secret
+                  type: VARCHAR(255)
+              - column:
+                  name: theme
+                  type: VARCHAR(10)
+                  defaultValue: "LIGHT"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        # CHECK: auth_provider must be one of LOCAL, GOOGLE, MICROSOFT
+        # Note: addCheckConstraint is Liquibase Pro — use sql change (Community-compatible)
+        - sql:
+            sql: >-
+              ALTER TABLE users
+                ADD CONSTRAINT chk_users_auth_provider
+                CHECK (auth_provider IN ('LOCAL', 'GOOGLE', 'MICROSOFT'));
+
+        # CHECK: theme must be LIGHT or DARK
+        - sql:
+            sql: >-
+              ALTER TABLE users
+                ADD CONSTRAINT chk_users_theme
+                CHECK (theme IN ('LIGHT', 'DARK'));
+
+        # UNIQUE: one email per tenant (regardless of auth_provider)
+        - addUniqueConstraint:
+            tableName: users
+            columnNames: tenant_id, email
+            constraintName: uq_users_tenant_email
+
+        # UNIQUE: one external_user_id per tenant (NULLs excluded by PostgreSQL convention)
+        - addUniqueConstraint:
+            tableName: users
+            columnNames: tenant_id, external_user_id
+            constraintName: uq_users_tenant_ext_id
+
+      rollback:
+        - dropTable:
+            tableName: users

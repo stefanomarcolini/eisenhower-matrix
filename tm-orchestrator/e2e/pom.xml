@@ -1,0 +1,129 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0
+                             https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.tm</groupId>
+    <artifactId>eisenhower-matrix-repository</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <relativePath>../../pom.xml</relativePath>
+  </parent>
+
+  <groupId>io.taskmanager</groupId>
+  <artifactId>e2e</artifactId>
+  <packaging>jar</packaging>
+  <description>Selenium E2E test suite — runs against the full docker-compose stack</description>
+
+  <properties>
+    <java.version>17</java.version>
+    <maven.compiler.source>${java.version}</maven.compiler.source>
+    <maven.compiler.target>${java.version}</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <!-- Library versions -->
+    <selenium.version>4.27.0</selenium.version>
+    <junit-jupiter.version>5.11.4</junit-jupiter.version>
+    <jackson.version>2.17.2</jackson.version>
+    <totp.version>1.7.1</totp.version>
+
+    <!-- Plugin versions -->
+    <maven-failsafe-plugin.version>3.5.2</maven-failsafe-plugin.version>
+    <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
+
+    <!--
+      E2E connection parameters — overridden by mvn -De2e.* flags from the CI pipeline.
+      Defaults point to the local docker-compose stack (useful for running tests manually).
+    -->
+    <e2e.app.url>http://localhost:8080</e2e.app.url>
+    <e2e.api.url>http://localhost:8080</e2e.api.url>
+    <e2e.selenium.url>http://localhost:4444</e2e.selenium.url>
+    <e2e.mailpit.url>http://localhost:8025</e2e.mailpit.url>
+    <e2e.admin.email>admin@task-manager.local</e2e.admin.email>
+    <e2e.admin.password>Admin1234!</e2e.admin.password>
+  </properties>
+
+  <dependencies>
+
+    <!-- Selenium WebDriver (browser automation) -->
+    <dependency>
+      <groupId>org.seleniumhq.selenium</groupId>
+      <artifactId>selenium-java</artifactId>
+      <version>${selenium.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- JUnit 5 -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit-jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- JSON parsing (Mailpit API responses, Core API bodies) -->
+    <dependency>
+      <groupId>com.fasterxml.jackson.core</groupId>
+      <artifactId>jackson-databind</artifactId>
+      <version>${jackson.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- TOTP code generation — MFA enrollment + verify E2E scenario -->
+    <dependency>
+      <groupId>dev.samstevens.totp</groupId>
+      <artifactId>totp</artifactId>
+      <version>${totp.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+  </dependencies>
+
+  <build>
+    <plugins>
+
+      <!-- Disable default surefire unit-test run (no *Test.java classes here) -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${maven-surefire-plugin.version}</version>
+        <configuration>
+          <skipTests>true</skipTests>
+        </configuration>
+      </plugin>
+
+      <!--
+        Failsafe runs classes named *IT.java during the integration-test + verify phases.
+        System properties are forwarded from Maven properties so that CI can pass
+        connection details via -De2e.* flags without changing any source file.
+      -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>${maven-failsafe-plugin.version}</version>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+        <configuration>
+          <systemPropertyVariables>
+            <e2e.app.url>${e2e.app.url}</e2e.app.url>
+            <e2e.api.url>${e2e.api.url}</e2e.api.url>
+            <e2e.selenium.url>${e2e.selenium.url}</e2e.selenium.url>
+            <e2e.mailpit.url>${e2e.mailpit.url}</e2e.mailpit.url>
+            <e2e.admin.email>${e2e.admin.email}</e2e.admin.email>
+            <e2e.admin.password>${e2e.admin.password}</e2e.admin.password>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+
+    </plugins>
+  </build>
+
+</project>

@@ -1,0 +1,39 @@
+{{- if .Values.bff.ingress.enabled }}
+{{- if not .Values.bff.ingress.host }}
+{{- fail "bff.ingress.host is required when bff.ingress.enabled is true" }}
+{{- end }}
+apiVersion: networking.k8s.io/v1
+kind: Ingress
+metadata:
+  name: {{ include "task-manager.fullname" . }}-bff
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bff
+  {{- if .Values.bff.ingress.className }}
+  annotations:
+    kubernetes.io/ingress.class: {{ .Values.bff.ingress.className | quote }}
+  {{- end }}
+spec:
+  {{- if .Values.bff.ingress.className }}
+  ingressClassName: {{ .Values.bff.ingress.className | quote }}
+  {{- end }}
+  {{- if .Values.bff.ingress.tls }}
+  tls:
+    - hosts:
+        - {{ .Values.bff.ingress.host | quote }}
+      {{- if .Values.bff.ingress.tlsSecret }}
+      secretName: {{ .Values.bff.ingress.tlsSecret | quote }}
+      {{- end }}
+  {{- end }}
+  rules:
+    - host: {{ .Values.bff.ingress.host | quote }}
+      http:
+        paths:
+          - path: /
+            pathType: Prefix
+            backend:
+              service:
+                name: {{ include "task-manager.fullname" . }}-bff
+                port:
+                  name: http
+{{- end }}

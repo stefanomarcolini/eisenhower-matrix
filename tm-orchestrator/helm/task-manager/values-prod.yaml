@@ -1,0 +1,78 @@
+# Production values — copy this file, fill in the placeholders, and store it
+# in your secrets manager (Vault, AWS Secrets Manager, Sealed Secrets, etc.).
+# Deploy with:
+#   helm upgrade --install task-manager \
+#     oci://ghcr.io/sm-task-manager/charts/task-manager \
+#     --values values-prod.yaml \
+#     --namespace task-manager --create-namespace
+
+image:
+  tag: "v1.0.0"        # pin to a specific release tag
+
+coreApi:
+  replicas: 2
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+bff:
+  replicas: 2
+  service:
+    type: ClusterIP
+  ingress:
+    enabled: true
+    className: nginx
+    host: app.example.com     # <-- your domain
+    tls: true
+    tlsSecret: task-manager-tls
+  hpa:
+    enabled: true
+    minReplicas: 2
+    maxReplicas: 8
+    targetCPUUtilizationPercentage: 70
+
+db:
+  host: postgres.task-manager.svc.cluster.local
+  port: 5432
+  name: taskmanager
+  username: taskmanager
+  # Provide via existingSecret instead of plain-text:
+  existingSecret: task-manager-db-secret   # must contain key: DB_PASSWORD
+
+redis:
+  host: redis-master.task-manager.svc.cluster.local
+  port: 6379
+  existingSecret: task-manager-redis-secret  # must contain key: REDIS_PASSWORD
+
+config:
+  internalJwtSecret: ""          # FILL IN — openssl rand -hex 32
+  jwtExpiryMinutes: 15
+  mfaEncryptionKey: ""           # FILL IN — openssl rand -base64 32
+
+  passwordMaxAgeDays: 90
+  passwordAgeWarningDays: 80
+  passwordResetTokenExpiryHours: 1
+
+  emailFromAddress: noreply@example.com
+  emailFromName: "Task Manager"
+  smtpHost: smtp.example.com
+  smtpPort: 587
+  smtpUsername: ""               # FILL IN
+  smtpPassword: ""               # FILL IN — or use ExternalSecrets
+  smtpTlsEnabled: true
+
+  appBaseUrl: https://app.example.com
+
+  bootstrapAdminEmail: admin@example.com
+  bootstrapAdminBcryptHash: ""   # FILL IN — htpasswd -bnBC 12 "" <password> | tr -d ':\n' | sed 's/$2y/$2a/'
+
+  liquibaseContexts: prod
+
+  googleClientId: ""             # FILL IN — or leave "disabled"
+  googleClientSecret: ""         # FILL IN
+  microsoftClientId: ""          # FILL IN — or leave "disabled"
+  microsoftClientSecret: ""      # FILL IN
+
+  sessionTimeoutMinutes: 30

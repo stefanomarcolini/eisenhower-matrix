@@ -1,0 +1,8 @@
+# Grype scan policy for tm-db-schema
+#
+# Security-first default: no active ignore exceptions.
+# Any future ignore must be scoped to a specific CVE and documented in
+# tm-documentation/DEVELOPMENT_ENV.md §8 with rationale and removal criteria.
+
+ignore: []
+

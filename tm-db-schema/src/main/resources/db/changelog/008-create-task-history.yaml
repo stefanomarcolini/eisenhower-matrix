@@ -1,0 +1,69 @@
+databaseChangeLog:
+  - changeSet:
+      id: 008-create-task-history
+      author: system
+      changes:
+        - createTable:
+            tableName: task_history
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: task_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_task_history_task
+                    references: tasks(id)
+              - column:
+                  # Denormalised for tenant isolation — avoids a join on every history query.
+                  name: tenant_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_task_history_tenant
+                    references: tenants(id)
+              - column:
+                  # User who triggered the transition.
+                  # For scheduler-driven transitions (→ OVERDUE), use the owning task's user_id.
+                  name: changed_by
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_task_history_user
+                    references: users(id)
+              - column:
+                  # NULL on the initial creation event (→ PLANNED).
+                  name: from_state
+                  type: VARCHAR(20)
+              - column:
+                  name: to_state
+                  type: VARCHAR(20)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: changed_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+
+        # Look up history entries for a given task
+        - createIndex:
+            indexName: idx_task_history_task_id
+            tableName: task_history
+            columns:
+              - column:
+                  name: task_id
+
+      rollback:
+        - dropIndex:
+            indexName: idx_task_history_task_id
+            tableName: task_history
+        - dropTable:
+            tableName: task_history

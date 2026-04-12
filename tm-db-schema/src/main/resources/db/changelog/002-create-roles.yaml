@@ -1,0 +1,46 @@
+databaseChangeLog:
+  - changeSet:
+      id: 002-create-roles
+      author: system
+      changes:
+        - createTable:
+            tableName: roles
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: name
+                  type: VARCHAR(50)
+                  constraints:
+                    nullable: false
+                    unique: true
+                    uniqueConstraintName: uq_roles_name
+        - insert:
+            tableName: roles
+            columns:
+              - column:
+                  name: id
+                  value: "00000000-0000-0000-0000-000000000010"
+              - column:
+                  name: name
+                  value: "STANDARD"
+        - insert:
+            tableName: roles
+            columns:
+              - column:
+                  name: id
+                  value: "00000000-0000-0000-0000-000000000011"
+              - column:
+                  name: name
+                  value: "ADMIN"
+      rollback:
+        - delete:
+            tableName: roles
+            where: "name IN ('STANDARD', 'ADMIN')"
+        - dropTable:
+            tableName: roles

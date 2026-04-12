@@ -1,0 +1,198 @@
+name: BFF Pipeline
+
+env:
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  SYFT_VERSION: '1.42.3'
+  GRYPE_VERSION: '0.110.0'
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+
+  # ── Stage 1 + 3 (Java): BFF integration tests ──────────────────────────────
+  # WireMock stubs all Core API + mock-IdP calls; Redis provided by Testcontainers.
+  test-java:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Run BFF integration tests
+        run: mvn --no-transfer-progress verify
+
+  # ── Stage 1 + 3 (Frontend): TypeScript build + vitest suite ────────────────
+  test-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend-client
+
+      - name: Verify committed generated schema exists
+        run: test -f src/api/schema.d.ts
+        working-directory: frontend-client
+
+      - name: TypeScript build
+        run: npm run build
+        working-directory: frontend-client
+
+      - name: Vitest suite
+        run: npm test
+        working-directory: frontend-client
+
+  # ── Stage 2: Dependency vulnerability scans ────────────────────────────────
+  # Grype scans a runtime/compile-scope CycloneDX SBOM for the BFF; npm audit
+  # checks frontend packages.
+  scan-java:
+    runs-on: ubuntu-latest
+    needs: test-java
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-java@v5
+        with:
+          java-version: '17'
+          distribution: temurin
+
+      - name: Install Grype (checksum verified)
+        run: |
+          set -euo pipefail
+          GRYPE_ARCHIVE="grype_${GRYPE_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLO "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/${GRYPE_ARCHIVE}"
+          curl -fsSLo grype_checksums.txt "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_checksums.txt"
+          grep " ${GRYPE_ARCHIVE}$" grype_checksums.txt > grype_checksum_line.txt
+          sha256sum -c grype_checksum_line.txt
+          tar -xzf "${GRYPE_ARCHIVE}" grype
+          sudo install -m 0755 grype /usr/local/bin/grype
+
+      - name: Generate runtime SBOM
+        run: >-
+          mvn --no-transfer-progress
+          -pl bff-service
+          -am
+          -DskipTests
+          package
+          org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom
+          -DincludeTestScope=false
+          -DoutputFormat=json
+          -DoutputName=sbom-bff-runtime
+
+      - name: Grype dependency scan
+        run: grype sbom:target/sbom-bff-runtime.json --config .grype.yaml --fail-on high
+
+  scan-frontend:
+    runs-on: ubuntu-latest
+    needs: test-frontend
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: actions/setup-node@v5
+        with:
+          node-version: '24'
+
+      - name: Install dependencies
+        run: npm ci
+        working-directory: frontend-client
+
+      - name: npm audit
+        run: npm audit --audit-level=high
+        working-directory: frontend-client
+
+  # ── Stage 4: Containerise (multi-stage), scan, push ─────────────────────────
+  # The Dockerfile at repo root builds both the React SPA and the Spring Boot
+  # BFF jar in a single multi-stage build (see CODING_PATTERNS.md §11).
+  # This stage verifies Syft/Grype release checksums before execution so scanner
+  # binaries are supply-chain attested for audit and compliance evidence.
+  publish:
+    runs-on: ubuntu-latest
+    needs: [test-java, test-frontend, scan-java, scan-frontend]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    permissions:
+      contents: read
+      packages: write
+
+    steps:
+      - uses: actions/checkout@v5
+
+      - uses: docker/setup-buildx-action@v4
+
+      - uses: docker/login-action@v4
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Set image tag
+        id: tag
+        run: echo "value=v1.0.${{ github.run_number }}" >> $GITHUB_OUTPUT
+
+      - name: Install Syft and Grype (checksum verified)
+        run: |
+          set -euo pipefail
+
+          SYFT_ARCHIVE="syft_${SYFT_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLO "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/${SYFT_ARCHIVE}"
+          curl -fsSLo syft_checksums.txt "https://github.com/anchore/syft/releases/download/v${SYFT_VERSION}/syft_${SYFT_VERSION}_checksums.txt"
+          grep " ${SYFT_ARCHIVE}$" syft_checksums.txt > syft_checksum_line.txt
+          sha256sum -c syft_checksum_line.txt
+          tar -xzf "${SYFT_ARCHIVE}" syft
+          sudo install -m 0755 syft /usr/local/bin/syft
+
+          GRYPE_ARCHIVE="grype_${GRYPE_VERSION}_linux_amd64.tar.gz"
+          curl -fsSLO "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/${GRYPE_ARCHIVE}"
+          curl -fsSLo grype_checksums.txt "https://github.com/anchore/grype/releases/download/v${GRYPE_VERSION}/grype_${GRYPE_VERSION}_checksums.txt"
+          grep " ${GRYPE_ARCHIVE}$" grype_checksums.txt > grype_checksum_line.txt
+          sha256sum -c grype_checksum_line.txt
+          tar -xzf "${GRYPE_ARCHIVE}" grype
+          sudo install -m 0755 grype /usr/local/bin/grype
+
+          syft version
+          grype version
+
+      - name: Build image (local)
+        run: >-
+          docker buildx build .
+          --load
+          --tag tm-ui-bff:${{ steps.tag.outputs.value }}
+          --cache-from type=gha
+          --cache-to type=gha,mode=max
+
+      - name: Generate SBOM (CycloneDX JSON)
+        run: syft "tm-ui-bff:${{ steps.tag.outputs.value }}" -o cyclonedx-json=sbom.tm-ui-bff.json
+
+      - name: Grype image scan
+        run: grype "tm-ui-bff:${{ steps.tag.outputs.value }}" --config .grype.yaml --fail-on high
+
+      - name: Upload SBOM and checksum evidence
+        uses: actions/upload-artifact@v7
+        with:
+          name: tm-ui-bff-security-evidence-${{ steps.tag.outputs.value }}
+          path: |
+            sbom.tm-ui-bff.json
+            syft_checksums.txt
+            syft_checksum_line.txt
+            grype_checksums.txt
+            grype_checksum_line.txt
+          if-no-files-found: error
+
+      - name: Push image to GHCR
+        run: >-
+          docker buildx build .
+          --push
+          --tag ghcr.io/sm-task-manager/tm-ui-bff:${{ steps.tag.outputs.value }}
+          --tag ghcr.io/sm-task-manager/tm-ui-bff:latest
+          --cache-from type=gha
+

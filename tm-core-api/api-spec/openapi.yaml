@@ -1,0 +1,908 @@
+openapi: 3.0.3
+
+info:
+  title: Task Manager — Core API
+  description: |
+    Public REST API for the Task Manager application.
+    Internal endpoints (/internal/**) consumed only by the BFF are not described here — see API_CONTRACT.md in tm-documentation.
+  version: 1.0.0
+  license:
+    name: MIT
+    url: https://opensource.org/licenses/MIT
+
+servers:
+  - url: /api/v1
+    description: Core API v1
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Tasks
+    description: Task CRUD and state management
+  - name: Users
+    description: User profile and MFA settings
+  - name: Admin
+    description: Admin-only operations (require ADMIN role)
+
+# ---------------------------------------------------------------------------
+# Paths
+# ---------------------------------------------------------------------------
+paths:
+
+  # ---------- Tasks ---------------------------------------------------------
+
+  /tasks:
+    get:
+      tags: [Tasks]
+      operationId: listTasks
+      summary: List tasks for the authenticated user
+      description: Returns paginated active tasks. Soft-deleted tasks are never returned.
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+        - name: state
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/TaskState'
+        - name: importance
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Priority'
+        - name: urgency
+          in: query
+          required: false
+          schema:
+            $ref: '#/components/schemas/Priority'
+      responses:
+        '200':
+          description: Paginated task list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedTaskResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    post:
+      tags: [Tasks]
+      operationId: createTask
+      summary: Create a task
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTaskRequest'
+      responses:
+        '201':
+          description: Task created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /tasks/matrix:
+    get:
+      tags: [Tasks]
+      operationId: getTaskMatrix
+      summary: All active tasks grouped by Importance × Urgency
+      description: Returns all 9 matrix cells. No pagination. Soft-deleted tasks excluded.
+      responses:
+        '200':
+          description: Task matrix
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/TaskMatrixResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /tasks/{id}:
+    parameters:
+      - $ref: '#/components/parameters/TaskId'
+
+    get:
+      tags: [Tasks]
+      operationId: getTask
+      summary: Get a task by ID
+      description: Returns 404 if the task does not exist, is soft-deleted, or belongs to another user/tenant.
+      responses:
+        '200':
+          description: Task found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+    put:
+      tags: [Tasks]
+      operationId: updateTask
+      summary: Full update of a task
+      description: Replaces all mutable fields. Requires the current `version` for optimistic locking.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateTaskRequest'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+    patch:
+      tags: [Tasks]
+      operationId: patchTask
+      summary: Partial update — primarily used for state transitions
+      description: |
+        Applies partial changes. When `state` is included, the transition must be legal per
+        the state machine in PROJECT_OVERVIEW.md §3. Illegal transitions return 422.
+        `version` is required when `state` is present (optimistic locking).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PatchTaskRequest'
+      responses:
+        '200':
+          description: Task updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Task'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+        '409':
+          $ref: '#/components/responses/Conflict'
+        '422':
+          $ref: '#/components/responses/UnprocessableEntity'
+
+    delete:
+      tags: [Tasks]
+      operationId: deleteTask
+      summary: Soft-delete a task
+      description: |
+        Sets `deleted_at = now()`. The database row is retained.
+        The task disappears from all subsequent queries. Hard deletes are not supported.
+      responses:
+        '204':
+          description: Task soft-deleted
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  # ---------- Users ---------------------------------------------------------
+
+  /users/me:
+    get:
+      tags: [Users]
+      operationId: getMyProfile
+      summary: Get the authenticated user's profile
+      responses:
+        '200':
+          description: User profile
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+    put:
+      tags: [Users]
+      operationId: updateMyProfile
+      summary: Update display name or theme
+      description: Email and authProvider are immutable and will be ignored if supplied.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateProfileRequest'
+      responses:
+        '200':
+          description: Profile updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UserProfile'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/password:
+    put:
+      tags: [Users]
+      operationId: changePassword
+      summary: Change password (LOCAL users only)
+      description: Returns 400 for OAuth2 users (GOOGLE, MICROSOFT).
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ChangePasswordRequest'
+      responses:
+        '204':
+          description: Password changed
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/mfa/enable:
+    post:
+      tags: [Users]
+      operationId: initiateMfaEnrollment
+      summary: Initiate TOTP MFA enrollment
+      description: Returns a TOTP secret and otpauth URI for QR code generation.
+      responses:
+        '200':
+          description: Enrollment initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MfaEnrollResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/mfa/verify:
+    post:
+      tags: [Users]
+      operationId: confirmMfaEnrollment
+      summary: Confirm MFA enrollment with a TOTP code
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaCodeRequest'
+      responses:
+        '204':
+          description: MFA enabled
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /users/me/mfa:
+    delete:
+      tags: [Users]
+      operationId: disableMfa
+      summary: Disable MFA
+      description: Requires the current TOTP code to confirm identity before disabling.
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/MfaCodeRequest'
+      responses:
+        '204':
+          description: MFA disabled
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  # ---------- Admin ---------------------------------------------------------
+
+  /admin/tenants:
+    post:
+      tags: [Admin]
+      operationId: createTenant
+      summary: Create a new tenant
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateTenantRequest'
+      responses:
+        '201':
+          description: Tenant created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Tenant'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '409':
+          $ref: '#/components/responses/Conflict'
+
+  /admin/stats:
+    get:
+      tags: [Admin]
+      operationId: getAdminStats
+      summary: Aggregate stats across all tenants
+      responses:
+        '200':
+          description: Aggregate statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminStats'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users:
+    get:
+      tags: [Admin]
+      operationId: listAdminUsers
+      summary: Paginated list of all users across all tenants
+      parameters:
+        - $ref: '#/components/parameters/Cursor'
+        - $ref: '#/components/parameters/Limit'
+      responses:
+        '200':
+          description: Paginated user list
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PagedUserResponse'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /admin/users/{id}/role:
+    patch:
+      tags: [Admin]
+      operationId: updateUserRole
+      summary: Promote or demote a user role (STANDARD ↔ ADMIN)
+      parameters:
+        - $ref: '#/components/parameters/UserId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateRoleRequest'
+      responses:
+        '200':
+          description: Role updated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AdminUserItem'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/NotFound'
+
+  /admin/reports/tasks:
+    get:
+      tags: [Admin]
+      operationId: exportTaskReport
+      summary: Export task report as xlsx or pdf
+      parameters:
+        - name: tenantId
+          in: query
+          required: false
+          description: Scope report to a specific tenant. Omit for all tenants.
+          schema:
+            type: string
+            format: uuid
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [xlsx, pdf]
+      responses:
+        '200':
+          description: Report file
+          content:
+            application/vnd.openxmlformats-officedocument.spreadsheetml.sheet:
+              schema:
+                type: string
+                format: binary
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+# ---------------------------------------------------------------------------
+# Components
+# ---------------------------------------------------------------------------
+components:
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    TaskId:
+      name: id
+      in: path
+      required: true
+      description: Task UUID
+      schema:
+        type: string
+        format: uuid
+
+    UserId:
+      name: id
+      in: path
+      required: true
+      description: User UUID
+      schema:
+        type: string
+        format: uuid
+
+    Cursor:
+      name: cursor
+      in: query
+      required: false
+      description: Opaque pagination cursor from a previous response
+      schema:
+        type: string
+
+    Limit:
+      name: limit
+      in: query
+      required: false
+      description: Maximum number of results to return (1–100)
+      schema:
+        type: integer
+        minimum: 1
+        maximum: 100
+        default: 20
+
+  responses:
+    BadRequest:
+      description: Validation error (RFC 7807)
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    Unauthorized:
+      description: Missing or invalid JWT
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    Forbidden:
+      description: Insufficient role — ADMIN required
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    NotFound:
+      description: Resource not found, soft-deleted, or belongs to another tenant/user
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    Conflict:
+      description: Optimistic lock version mismatch or unique constraint violation
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+    UnprocessableEntity:
+      description: Illegal state transition
+      content:
+        application/problem+json:
+          schema:
+            $ref: '#/components/schemas/Problem'
+
+  schemas:
+
+    # -- Enumerations --------------------------------------------------------
+
+    TaskState:
+      type: string
+      enum: [PLANNED, IN_PROGRESS, COMPLETED, OVERDUE]
+      description: |
+        Legal transitions (user-driven): PLANNED→IN_PROGRESS, IN_PROGRESS→COMPLETED, OVERDUE→IN_PROGRESS.
+        COMPLETED is terminal. OVERDUE is set only by the scheduler.
+
+    Priority:
+      type: string
+      enum: [LOW, MEDIUM, HIGH]
+
+    Theme:
+      type: string
+      enum: [LIGHT, DARK]
+
+    Role:
+      type: string
+      enum: [STANDARD, ADMIN]
+
+    AuthProvider:
+      type: string
+      enum: [LOCAL, GOOGLE, MICROSOFT]
+
+    # -- Error ---------------------------------------------------------------
+
+    Problem:
+      type: object
+      description: RFC 7807 Problem Details
+      properties:
+        type:
+          type: string
+          description: URI reference identifying the problem type
+        title:
+          type: string
+          description: Short, human-readable summary
+        status:
+          type: integer
+          description: HTTP status code
+        detail:
+          type: string
+          description: Human-readable explanation of this specific occurrence
+        instance:
+          type: string
+          description: URI of the resource that triggered the error
+
+    # -- Task ----------------------------------------------------------------
+
+    Task:
+      type: object
+      required: [id, title, state, importance, urgency, version, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        title:
+          type: string
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        state:
+          $ref: '#/components/schemas/TaskState'
+        importance:
+          $ref: '#/components/schemas/Priority'
+        urgency:
+          $ref: '#/components/schemas/Priority'
+        dueDate:
+          type: string
+          format: date
+          nullable: true
+          description: ISO 8601 date (YYYY-MM-DD)
+        version:
+          type: integer
+          description: Optimistic locking counter — include in PUT/PATCH requests
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    CreateTaskRequest:
+      type: object
+      required: [title, importance, urgency]
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        importance:
+          $ref: '#/components/schemas/Priority'
+        urgency:
+          $ref: '#/components/schemas/Priority'
+        dueDate:
+          type: string
+          format: date
+          nullable: true
+
+    UpdateTaskRequest:
+      type: object
+      required: [title, importance, urgency, version]
+      description: Full replacement of all mutable task fields.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        importance:
+          $ref: '#/components/schemas/Priority'
+        urgency:
+          $ref: '#/components/schemas/Priority'
+        dueDate:
+          type: string
+          format: date
+          nullable: true
+        version:
+          type: integer
+          description: Current task version — required for optimistic locking
+
+    PatchTaskRequest:
+      type: object
+      description: |
+        Partial update. At least one field must be present.
+        `version` is required when `state` is present.
+      properties:
+        title:
+          type: string
+          minLength: 1
+          maxLength: 255
+        description:
+          type: string
+          nullable: true
+        state:
+          $ref: '#/components/schemas/TaskState'
+        importance:
+          $ref: '#/components/schemas/Priority'
+        urgency:
+          $ref: '#/components/schemas/Priority'
+        dueDate:
+          type: string
+          format: date
+          nullable: true
+        version:
+          type: integer
+          description: Required when `state` is present (optimistic locking)
+
+    MatrixCell:
+      type: object
+      required: [importance, urgency, tasks]
+      properties:
+        importance:
+          $ref: '#/components/schemas/Priority'
+        urgency:
+          $ref: '#/components/schemas/Priority'
+        tasks:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+
+    TaskMatrixResponse:
+      type: object
+      required: [cells]
+      properties:
+        cells:
+          type: array
+          description: All 9 Importance × Urgency cells (some may be empty)
+          items:
+            $ref: '#/components/schemas/MatrixCell'
+
+    PagedTaskResponse:
+      type: object
+      required: [data, totalCount]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/Task'
+        nextCursor:
+          type: string
+          nullable: true
+          description: Pass as `cursor` in the next request. Absent when no more pages.
+        totalCount:
+          type: integer
+          description: Total number of matching active tasks (across all pages)
+
+    # -- User ----------------------------------------------------------------
+
+    UserProfile:
+      type: object
+      required: [id, email, role, authProvider, isMfaEnabled, theme, createdAt, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+          nullable: true
+        role:
+          $ref: '#/components/schemas/Role'
+        authProvider:
+          $ref: '#/components/schemas/AuthProvider'
+        isMfaEnabled:
+          type: boolean
+        theme:
+          $ref: '#/components/schemas/Theme'
+        passwordWarning:
+          type: boolean
+          nullable: true
+          description: |
+            LOCAL users only. True when the password is approaching the maximum age.
+            Null for OAuth2 users.
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+        updatedAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    UpdateProfileRequest:
+      type: object
+      description: Only displayName and theme are mutable. email and authProvider are ignored.
+      properties:
+        displayName:
+          type: string
+          nullable: true
+          maxLength: 255
+        theme:
+          $ref: '#/components/schemas/Theme'
+
+    ChangePasswordRequest:
+      type: object
+      required: [currentPassword, newPassword]
+      properties:
+        currentPassword:
+          type: string
+          format: password
+        newPassword:
+          type: string
+          format: password
+
+    MfaEnrollResponse:
+      type: object
+      required: [secret, otpauthUri]
+      properties:
+        secret:
+          type: string
+          description: Base32-encoded TOTP secret for manual entry into an authenticator app
+        otpauthUri:
+          type: string
+          description: otpauth:// URI suitable for QR code generation
+
+    MfaCodeRequest:
+      type: object
+      required: [code]
+      properties:
+        code:
+          type: string
+          minLength: 6
+          maxLength: 6
+          description: 6-digit TOTP code from the authenticator app
+
+    # -- Admin ---------------------------------------------------------------
+
+    CreateTenantRequest:
+      type: object
+      required: [name]
+      properties:
+        name:
+          type: string
+          minLength: 1
+          maxLength: 255
+
+    Tenant:
+      type: object
+      required: [id, name, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+          readOnly: true
+
+    AdminUserItem:
+      type: object
+      required: [id, email, role, authProvider, tenantId, createdAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        email:
+          type: string
+          format: email
+        displayName:
+          type: string
+          nullable: true
+        role:
+          $ref: '#/components/schemas/Role'
+        authProvider:
+          $ref: '#/components/schemas/AuthProvider'
+        tenantId:
+          type: string
+          format: uuid
+        createdAt:
+          type: string
+          format: date-time
+
+    PagedUserResponse:
+      type: object
+      required: [data, totalCount]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/components/schemas/AdminUserItem'
+        nextCursor:
+          type: string
+          nullable: true
+        totalCount:
+          type: integer
+
+    UpdateRoleRequest:
+      type: object
+      required: [role]
+      properties:
+        role:
+          $ref: '#/components/schemas/Role'
+
+    AdminStats:
+      type: object
+      required: [totalTenants, totalUsers, totalTasks, tasksByState]
+      properties:
+        totalTenants:
+          type: integer
+        totalUsers:
+          type: integer
+        totalTasks:
+          type: integer
+          description: Count of active (non-deleted) tasks
+        tasksByState:
+          type: object
+          description: Active task count per state (e.g. {"PLANNED":42,"IN_PROGRESS":10,...})
+          additionalProperties:
+            type: integer

@@ -1,0 +1,25 @@
+databaseChangeLog:
+  - include:
+      file: 001-create-tenants.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: 002-create-roles.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: 003-create-users.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: 004-create-tasks.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: 005-create-indexes.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: 006-create-password-reset-tokens.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: 007-bootstrap-admin.yaml
+      relativeToChangelogFile: true
+  - include:
+      file: 008-create-task-history.yaml
+      relativeToChangelogFile: true

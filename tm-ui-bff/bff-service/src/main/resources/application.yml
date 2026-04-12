@@ -1,0 +1,70 @@
+# tm-ui-bff — BFF service configuration
+# Environment variables are required in production; defaults are for local dev where applicable.
+# See ENV_VARS.md for the full variable reference.
+
+spring:
+  session:
+    redis:
+      flush-mode: on-save
+      namespace: tm:session
+    # Sliding-window timeout — set SESSION_TIMEOUT_MINUTES env var to override
+    timeout: ${SESSION_TIMEOUT_MINUTES:30}m
+  data:
+    redis:
+      host: ${REDIS_HOST}
+      port: ${REDIS_PORT:6379}
+      # Leave blank for local dev; set in production
+      password: ${REDIS_PASSWORD:}
+  security:
+    oauth2:
+      client:
+        registration:
+          google:
+            client-id: ${GOOGLE_CLIENT_ID:disabled}
+            client-secret: ${GOOGLE_CLIENT_SECRET:disabled}
+            scope: openid,email,profile
+          microsoft:
+            client-id: ${MICROSOFT_CLIENT_ID:disabled}
+            client-secret: ${MICROSOFT_CLIENT_SECRET:disabled}
+            scope: openid,email,profile,offline_access
+            # Required: microsoft is not a Spring Boot CommonOAuth2Provider — must be explicit
+            authorization-grant-type: authorization_code
+            redirect-uri: "{baseUrl}/login/oauth2/code/{registrationId}"
+        provider:
+          microsoft:
+            authorization-uri: https://login.microsoftonline.com/consumers/v2.0/oauth2/v2.0/authorize
+            token-uri:         https://login.microsoftonline.com/consumers/v2.0/oauth2/v2.0/token
+            jwk-set-uri:       https://login.microsoftonline.com/consumers/v2.0/discovery/v2.0/keys
+            user-info-uri:     https://graph.microsoft.com/oidc/userinfo
+            user-name-attribute: sub
+
+app:
+  core-api-base-url: ${CORE_API_BASE_URL}
+  # Default tenant — used for single-tenant deployments and OAuth2 logins where tenant
+  # is not supplied via request parameter. Override for multi-tenant setups.
+  default-tenant-id: ${DEFAULT_TENANT_ID:00000000-0000-0000-0000-000000000001}
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+server:
+  port: ${SERVER_PORT:8080}
+  # Never expose internal error details to the client (CODING_PATTERNS.md §13)
+  error:
+    include-stacktrace: never
+    include-message: never
+    include-exception: false
+  # Session cookie configuration
+  servlet:
+    session:
+      cookie:
+        name: TM_SESSION
+        http-only: true
+        same-site: lax
+        secure: ${SESSION_COOKIE_SECURE:false}

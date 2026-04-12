@@ -1,0 +1,19 @@
+# Environment — never commit secrets
+.env
+
+# Local debugging traces — not part of application code or CI artifacts
+debug-artifacts/
+
+# Maven (E2E module)
+e2e/target/
+
+# IDE
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

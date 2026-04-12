@@ -1,0 +1,29 @@
+# Maven
+target/
+!.mvn/wrapper/maven-wrapper.jar
+
+# Local debugging traces — not part of application code or CI artifacts
+debug-artifacts/
+
+# Generated OpenAPI sources (regenerated at build time from api-spec/openapi.yaml)
+target/generated-sources/openapi/
+
+# Environment — never commit secrets
+.env
+
+# IDE
+.idea/
+*.iws
+*.iml
+*.ipr
+.classpath
+.project
+.settings/
+.springBeans
+
+# VS Code
+.vscode/
+
+# OS
+.DS_Store
+Thumbs.db

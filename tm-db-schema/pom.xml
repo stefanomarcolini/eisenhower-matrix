@@ -1,0 +1,156 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0"
+         xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+         xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+  <modelVersion>4.0.0</modelVersion>
+
+  <parent>
+    <groupId>com.tm</groupId>
+    <artifactId>eisenhower-matrix-repository</artifactId>
+    <version>1.0.0-SNAPSHOT</version>
+    <relativePath>../pom.xml</relativePath>
+  </parent>
+
+  <artifactId>tm-db-schema</artifactId>
+  <packaging>jar</packaging>
+  <description>Liquibase migration runner for the Task Manager PostgreSQL schema</description>
+
+  <properties>
+    <java.version>17</java.version>
+    <maven.compiler.source>17</maven.compiler.source>
+    <maven.compiler.target>17</maven.compiler.target>
+    <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
+
+    <liquibase.version>5.0.2</liquibase.version>
+    <postgresql.version>42.7.7</postgresql.version>
+    <testcontainers.version>2.0.4</testcontainers.version>
+    <junit.version>5.10.2</junit.version>
+    <surefire.version>3.2.5</surefire.version>
+
+    <!-- Docker image tag used by MigrationIntegrationTest via Testcontainers.
+         Must stay in sync with the PostgreSQL version in DATABASE_SCHEMA.md.
+         Override at CI time: mvn verify -Dpostgresql.test.image=postgres:18-alpine -->
+    <postgresql.test.image>postgres:17-alpine</postgresql.test.image>
+    <testcontainers-postgresql.version>1.21.4</testcontainers-postgresql.version>
+    <testcontainers-junit-jupiter.version>1.21.4</testcontainers-junit-jupiter.version>
+
+    <!-- Maven property defaults for the Liquibase Maven plugin.
+         Override on the command line: mvn liquibase:update -DDB_HOST=myhost -->
+    <DB_PORT>5432</DB_PORT>
+    <tomcat-embed-core.version>11.0.20</tomcat-embed-core.version>
+  </properties>
+
+  <dependencyManagement>
+    <dependencies>
+      <dependency>
+        <groupId>org.apache.tomcat.embed</groupId>
+        <artifactId>tomcat-embed-core</artifactId>
+        <version>${tomcat-embed-core.version}</version>
+        <scope>compile</scope>
+      </dependency>
+    </dependencies>
+  </dependencyManagement>
+
+  <dependencies>
+    <!-- Liquibase core — used by integration tests and Maven plugin -->
+    <dependency>
+      <groupId>org.liquibase</groupId>
+      <artifactId>liquibase-core</artifactId>
+      <version>${liquibase.version}</version>
+    </dependency>
+
+    <!-- PostgreSQL JDBC driver -->
+    <dependency>
+      <groupId>org.postgresql</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>${postgresql.version}</version>
+    </dependency>
+
+    <!-- JUnit 5 -->
+    <dependency>
+      <groupId>org.junit.jupiter</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${junit.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- Testcontainers -->
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>testcontainers</artifactId>
+      <version>${testcontainers.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>postgresql</artifactId>
+      <version>${testcontainers-postgresql.version}</version>
+      <scope>test</scope>
+    </dependency>
+    <dependency>
+      <groupId>org.testcontainers</groupId>
+      <artifactId>junit-jupiter</artifactId>
+      <version>${testcontainers-junit-jupiter.version}</version>
+      <scope>test</scope>
+    </dependency>
+
+    <!-- SLF4J binding for Liquibase/Testcontainers logging in tests -->
+    <dependency>
+      <groupId>org.slf4j</groupId>
+      <artifactId>slf4j-simple</artifactId>
+      <version>2.0.12</version>
+      <scope>test</scope>
+    </dependency>
+  </dependencies>
+
+  <build>
+    <plugins>
+      <!-- JUnit 5 runner — passes postgresql.test.image to the test JVM -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-surefire-plugin</artifactId>
+        <version>${surefire.version}</version>
+        <configuration>
+          <!-- Pass Docker named pipe to forked JVM — required for Testcontainers on Windows/Rancher Desktop.
+               API_VERSION (docker-java env var) forces Docker API v1.41 (Engine 29.x minimum). -->
+          <environmentVariables>
+            <DOCKER_HOST>npipe:////./pipe/docker_engine</DOCKER_HOST>
+            <API_VERSION>1.41</API_VERSION>
+          </environmentVariables>
+          <systemPropertyVariables>
+            <postgresql.test.image>${postgresql.test.image}</postgresql.test.image>
+            <api.version>1.41</api.version>
+          </systemPropertyVariables>
+        </configuration>
+      </plugin>
+
+      <!--
+        Liquibase Maven plugin — for manual local runs:
+          mvn liquibase:update   -DDB_HOST=... -DDB_NAME=... -DDB_USERNAME=... -DDB_PASSWORD=...
+          mvn liquibase:rollback -DDB_HOST=... -DliquibaseCommandValue=1
+        Connection details are read from system properties or env vars.
+      -->
+      <plugin>
+        <groupId>org.liquibase</groupId>
+        <artifactId>liquibase-maven-plugin</artifactId>
+        <version>${liquibase.version}</version>
+        <configuration>
+          <changeLogFile>src/main/resources/db/changelog/db.changelog-master.yaml</changeLogFile>
+          <!-- DB_PORT defaults to 5432 via the Maven property above -->
+          <url>jdbc:postgresql://${DB_HOST}:${DB_PORT}/${DB_NAME}</url>
+          <username>${DB_USERNAME}</username>
+          <password>${DB_PASSWORD}</password>
+          <driver>org.postgresql.Driver</driver>
+          <promptOnNonLocalDatabase>false</promptOnNonLocalDatabase>
+        </configuration>
+        <dependencies>
+          <dependency>
+            <groupId>org.postgresql</groupId>
+            <artifactId>postgresql</artifactId>
+            <version>${postgresql.version}</version>
+          </dependency>
+        </dependencies>
+      </plugin>
+    </plugins>
+  </build>
+</project>

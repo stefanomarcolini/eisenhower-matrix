@@ -1,0 +1,47 @@
+# tm-core-api — Test profile overrides (@ActiveProfiles("test"))
+# Applied on top of application.yml in the test JVM.
+# Testcontainers provides the real PostgreSQL instance; the JDBC URL is wired via
+# @DynamicPropertySource so no datasource URL is hardcoded here.
+
+spring:
+  jpa:
+    hibernate:
+      # Tests use a Testcontainers PostgreSQL — let Hibernate create the schema from entities.
+      # Liquibase is disabled in application.yml; role seed data is provided via @Sql.
+      ddl-auto: create-drop
+    show-sql: true   # Helpful during test debugging. Never enable in prod or dev.
+
+  # Disable Liquibase in tests (already false in application.yml, explicit for clarity)
+  liquibase:
+    enabled: false
+
+  # SMTP is mocked via @MockBean JavaMailSender — no real server needed
+  mail:
+    host: localhost
+    port: 1025
+
+management:
+  health:
+    # @MockBean JavaMailSender does not populate the Map<String,JavaMailSender> that
+    # MailHealthContributorAutoConfiguration expects, causing "Beans must not be empty".
+    # Disable the mail health check; it is not meaningful with a mock sender.
+    mail:
+      enabled: false
+
+app:
+  jwt:
+    # Test-only signing key (Base64, 32 bytes). Not used outside the test JVM.
+    secret: dGVzdC1zZWNyZXQtbXVzdC1iZS0zMi1ieXRlcy1sb25n
+    expiry-minutes: 15
+  mfa:
+    # Test-only AES-256 key (Base64, 32 bytes). Not used outside the test JVM.
+    # Decodes to: test-encryption-key-32-byteeeees (exactly 32 bytes required for AES-256).
+    encryption-key: dGVzdC1lbmNyeXB0aW9uLWtleS0zMi1ieXRlZWVlZXM=
+  base-url: http://localhost:8080
+  password:
+    max-age-days: 90
+    age-warning-days: 80
+    reset-token-expiry-hours: 1
+  email:
+    from-address: noreply@test.local
+    from-name: Task Manager Test

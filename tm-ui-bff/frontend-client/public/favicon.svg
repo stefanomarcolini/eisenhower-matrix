@@ -1,0 +1,6 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64" role="img" aria-label="Task Manager">
+  <rect width="64" height="64" rx="12" fill="#4F46E5"/>
+  <path d="M16 22h32v6H16zm0 12h22v6H16zm0 12h16v6H16z" fill="#FFFFFF"/>
+  <path d="M44 42l3 3 7-8" fill="none" stroke="#FFFFFF" stroke-width="4" stroke-linecap="round" stroke-linejoin="round"/>
+</svg>
+

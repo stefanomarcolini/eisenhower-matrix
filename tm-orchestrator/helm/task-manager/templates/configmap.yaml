@@ -1,0 +1,53 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "task-manager.fullname" . }}-config
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+data:
+  # ── Database (shared by core-api and db-migrations) ──────────────────────────
+  DB_HOST:     {{ required "db.host is required" .Values.db.host | quote }}
+  DB_PORT:     {{ .Values.db.port | toString | quote }}
+  DB_NAME:     {{ required "db.name is required" .Values.db.name | quote }}
+  DB_USERNAME: {{ required "db.username is required" .Values.db.username | quote }}
+
+  # ── Redis (BFF) ───────────────────────────────────────────────────────────────
+  REDIS_HOST: {{ required "redis.host is required" .Values.redis.host | quote }}
+  REDIS_PORT: {{ .Values.redis.port | toString | quote }}
+
+  # ── Core API — JWT ────────────────────────────────────────────────────────────
+  JWT_EXPIRY_MINUTES: {{ .Values.config.jwtExpiryMinutes | toString | quote }}
+
+  # ── Core API — password policy ────────────────────────────────────────────────
+  PASSWORD_MAX_AGE_DAYS:             {{ .Values.config.passwordMaxAgeDays             | toString | quote }}
+  PASSWORD_AGE_WARNING_DAYS:         {{ .Values.config.passwordAgeWarningDays         | toString | quote }}
+  PASSWORD_RESET_TOKEN_EXPIRY_HOURS: {{ .Values.config.passwordResetTokenExpiryHours  | toString | quote }}
+
+  # ── Core API — email ──────────────────────────────────────────────────────────
+  EMAIL_FROM_ADDRESS: {{ required "config.emailFromAddress is required" .Values.config.emailFromAddress | quote }}
+  EMAIL_FROM_NAME:    {{ .Values.config.emailFromName | quote }}
+  SMTP_HOST:          {{ required "config.smtpHost is required" .Values.config.smtpHost | quote }}
+  SMTP_PORT:          {{ .Values.config.smtpPort | toString | quote }}
+  SMTP_TLS_ENABLED:   {{ .Values.config.smtpTlsEnabled | toString | quote }}
+
+  # ── Core API — application ────────────────────────────────────────────────────
+  APP_BASE_URL: {{ required "config.appBaseUrl is required" .Values.config.appBaseUrl | quote }}
+
+  # ── Core API — bootstrap admin (email only; password hash is in Secret) ───────
+  BOOTSTRAP_ADMIN_EMAIL: {{ required "config.bootstrapAdminEmail is required" .Values.config.bootstrapAdminEmail | quote }}
+
+  # ── DB migrations ─────────────────────────────────────────────────────────────
+  LIQUIBASE_CONTEXTS: {{ .Values.config.liquibaseContexts | quote }}
+
+  # ── BFF — Core API proxy ──────────────────────────────────────────────────────
+  CORE_API_BASE_URL: {{ printf "http://%s-core-api:8080" (include "task-manager.fullname" .) | quote }}
+
+  # ── BFF — OAuth2 client IDs (secrets are in Secret) ──────────────────────────
+  GOOGLE_CLIENT_ID:    {{ .Values.config.googleClientId    | quote }}
+  MICROSOFT_CLIENT_ID: {{ .Values.config.microsoftClientId | quote }}
+
+  # ── BFF — session ─────────────────────────────────────────────────────────────
+  SESSION_TIMEOUT_MINUTES: {{ .Values.config.sessionTimeoutMinutes | toString | quote }}
+
+  # ── Spring profile (production by default) ────────────────────────────────────
+  SPRING_PROFILES_ACTIVE: prod

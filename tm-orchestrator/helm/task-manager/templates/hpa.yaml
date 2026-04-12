@@ -1,0 +1,47 @@
+{{- if .Values.coreApi.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "task-manager.fullname" . }}-core-api
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: core-api
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "task-manager.fullname" . }}-core-api
+  minReplicas: {{ .Values.coreApi.hpa.minReplicas }}
+  maxReplicas: {{ .Values.coreApi.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.coreApi.hpa.targetCPUUtilizationPercentage }}
+{{- end }}
+---
+{{- if .Values.bff.hpa.enabled }}
+apiVersion: autoscaling/v2
+kind: HorizontalPodAutoscaler
+metadata:
+  name: {{ include "task-manager.fullname" . }}-bff
+  labels:
+    {{- include "task-manager.labels" . | nindent 4 }}
+    app.kubernetes.io/component: bff
+spec:
+  scaleTargetRef:
+    apiVersion: apps/v1
+    kind: Deployment
+    name: {{ include "task-manager.fullname" . }}-bff
+  minReplicas: {{ .Values.bff.hpa.minReplicas }}
+  maxReplicas: {{ .Values.bff.hpa.maxReplicas }}
+  metrics:
+    - type: Resource
+      resource:
+        name: cpu
+        target:
+          type: Utilization
+          averageUtilization: {{ .Values.bff.hpa.targetCPUUtilizationPercentage }}
+{{- end }}

@@ -1,0 +1,121 @@
+# Default values for the Task Manager Helm chart.
+# Override these in values-prod.yaml or via --set / --values flags.
+# All required values that have no sensible default are left empty ("").
+# `helm upgrade --install` will fail fast if a required value is missing.
+
+# ── Image ──────────────────────────────────────────────────────────────────────
+image:
+  registry: ghcr.io/sm-task-manager
+  # tag defaults to Chart.appVersion; override in CI with the published image tag
+  tag: ""
+  pullPolicy: IfNotPresent
+
+# ── Core API ───────────────────────────────────────────────────────────────────
+coreApi:
+  replicas: 1
+  image: tm-core-api
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # HorizontalPodAutoscaler — disabled by default; enable in production
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+
+# ── BFF (React SPA + Spring Boot session proxy) ────────────────────────────────
+bff:
+  replicas: 1
+  image: tm-ui-bff
+  service:
+    type: ClusterIP
+    port: 8080
+  # Ingress — disabled by default; enable with a hostname in production
+  ingress:
+    enabled: false
+    className: ""        # e.g. "nginx"
+    host: ""             # e.g. "app.example.com" — required when enabled
+    tls: false
+    tlsSecret: ""        # name of a TLS secret; required when tls=true
+  resources:
+    requests:
+      cpu: 250m
+      memory: 512Mi
+    limits:
+      cpu: "1"
+      memory: 1Gi
+  # HorizontalPodAutoscaler — disabled by default; enable in production
+  hpa:
+    enabled: false
+    minReplicas: 1
+    maxReplicas: 4
+    targetCPUUtilizationPercentage: 70
+
+# ── DB schema migration Job ────────────────────────────────────────────────────
+# Runs as a Helm pre-install / pre-upgrade hook so the schema is always up to
+# date before the application Deployments are created or updated.
+dbMigrations:
+  image: tm-db-schema
+
+# ── PostgreSQL (external — not deployed by this chart) ────────────────────────
+db:
+  host: ""                 # REQUIRED — e.g. "postgres.default.svc.cluster.local"
+  port: 5432
+  name: taskmanager
+  username: taskmanager
+  password: ""             # sensitive; prefer existingSecret
+  # If existingSecret is set the chart reads DB_PASSWORD from that Secret
+  # instead of creating one from db.password above.
+  existingSecret: ""
+
+# ── Redis (external — not deployed by this chart) ─────────────────────────────
+redis:
+  host: ""                 # REQUIRED — e.g. "redis-master.default.svc.cluster.local"
+  port: 6379
+  password: ""             # leave empty when Redis has no auth
+  existingSecret: ""       # same pattern as db.existingSecret, key: REDIS_PASSWORD
+
+# ── Application configuration ─────────────────────────────────────────────────
+config:
+  # Core API — JWT / MFA
+  internalJwtSecret: ""          # REQUIRED — random 256-bit hex string
+  jwtExpiryMinutes: 15
+  mfaEncryptionKey: ""           # REQUIRED — 32-byte AES key (base64)
+
+  # Core API — password policy
+  passwordMaxAgeDays: 90
+  passwordAgeWarningDays: 80
+  passwordResetTokenExpiryHours: 1
+
+  # Core API — email / SMTP
+  emailFromAddress: ""           # REQUIRED — e.g. noreply@example.com
+  emailFromName: "Task Manager"
+  smtpHost: ""                   # REQUIRED
+  smtpPort: 587
+  smtpUsername: ""
+  smtpPassword: ""
+  smtpTlsEnabled: true
+
+  # Core API — public URL (used in password reset email links)
+  appBaseUrl: ""                 # REQUIRED — e.g. https://app.example.com
+
+  # Bootstrap admin account (created on first startup)
+  bootstrapAdminEmail: ""        # REQUIRED — e.g. admin@example.com
+  bootstrapAdminBcryptHash: ""   # REQUIRED — bcrypt hash of the admin password
+
+  # Liquibase context applied during migration
+  liquibaseContexts: prod
+
+  # OAuth2 providers — set to "disabled" to disable
+  googleClientId: disabled
+  googleClientSecret: disabled
+  microsoftClientId: disabled
+  microsoftClientSecret: disabled
+
+  # BFF session
+  sessionTimeoutMinutes: 30

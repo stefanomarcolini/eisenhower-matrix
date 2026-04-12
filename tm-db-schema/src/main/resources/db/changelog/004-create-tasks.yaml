@@ -1,0 +1,103 @@
+databaseChangeLog:
+  - changeSet:
+      id: 004-create-tasks
+      author: system
+      changes:
+        - createTable:
+            tableName: tasks
+            columns:
+              - column:
+                  name: id
+                  type: UUID
+                  defaultValueComputed: gen_random_uuid()
+                  constraints:
+                    primaryKey: true
+                    nullable: false
+              - column:
+                  name: tenant_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_tasks_tenant
+                    references: tenants(id)
+              - column:
+                  name: user_id
+                  type: UUID
+                  constraints:
+                    nullable: false
+                    foreignKeyName: fk_tasks_user
+                    references: users(id)
+              - column:
+                  name: title
+                  type: VARCHAR(255)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: description
+                  type: TEXT
+              - column:
+                  name: state
+                  type: VARCHAR(20)
+                  defaultValue: "PLANNED"
+                  constraints:
+                    nullable: false
+              - column:
+                  name: importance
+                  type: VARCHAR(10)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: urgency
+                  type: VARCHAR(10)
+                  constraints:
+                    nullable: false
+              - column:
+                  name: due_date
+                  type: DATE
+              - column:
+                  # Optimistic locking counter — incremented by JPA on every update.
+                  name: version
+                  type: INT
+                  defaultValueNumeric: 0
+                  constraints:
+                    nullable: false
+              - column:
+                  name: created_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  name: updated_at
+                  type: TIMESTAMPTZ
+                  defaultValueComputed: now()
+                  constraints:
+                    nullable: false
+              - column:
+                  # Soft-delete marker. NULL = active. Hibernate @Where filters these out automatically.
+                  # @Where is NOT applied to bulk DML — explicit deleted_at IS NULL required in scheduler queries.
+                  name: deleted_at
+                  type: TIMESTAMPTZ
+
+        # CHECK constraints — using sql change (addCheckConstraint is Liquibase Pro only)
+        - sql:
+            sql: >-
+              ALTER TABLE tasks
+                ADD CONSTRAINT chk_tasks_state
+                CHECK (state IN ('PLANNED', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE'));
+
+        - sql:
+            sql: >-
+              ALTER TABLE tasks
+                ADD CONSTRAINT chk_tasks_importance
+                CHECK (importance IN ('LOW', 'MEDIUM', 'HIGH'));
+
+        - sql:
+            sql: >-
+              ALTER TABLE tasks
+                ADD CONSTRAINT chk_tasks_urgency
+                CHECK (urgency IN ('LOW', 'MEDIUM', 'HIGH'));
+
+      rollback:
+        - dropTable:
+            tableName: tasks

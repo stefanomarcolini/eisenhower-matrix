@@ -1,0 +1,13 @@
+# tm-ui-bff — Dev profile overrides (@ActiveProfiles("dev") or SPRING_PROFILES_ACTIVE=dev)
+# Applied on top of application.yml when running locally.
+
+logging:
+  level:
+    com.tm: DEBUG
+    org.springframework.security: DEBUG   # remove when auth flow is confirmed working
+
+server:
+  servlet:
+    session:
+      cookie:
+        secure: false   # no TLS in local dev
