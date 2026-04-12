@@ -34,6 +34,10 @@
     <!-- Redis image tag — override at CI time via -Dredis.test.image=redis:8-alpine -->
     <redis.test.image>redis:7-alpine</redis.test.image>
 
+    <!-- Docker socket path — default is Windows/Rancher Desktop npipe.
+         Override at CI time (Linux): mvn test -Ddocker.host=unix:///var/run/docker.sock -->
+    <docker.host>npipe:////./pipe/docker_engine</docker.host>
+
     <jackson-bom.version>3.1.0</jackson-bom.version>
     <tomcat-embed-core.version>11.0.20</tomcat-embed-core.version>
     <spring-security-web.version>7.0.4</spring-security-web.version>

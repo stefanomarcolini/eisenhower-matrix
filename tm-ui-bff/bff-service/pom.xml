@@ -133,7 +133,7 @@
         <artifactId>maven-surefire-plugin</artifactId>
         <configuration>
           <environmentVariables>
-            <DOCKER_HOST>npipe:////./pipe/docker_engine</DOCKER_HOST>
+            <DOCKER_HOST>${docker.host}</DOCKER_HOST>
             <API_VERSION>1.41</API_VERSION>
           </environmentVariables>
           <systemPropertyVariables>
