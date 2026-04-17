@@ -263,11 +263,12 @@ The Vite dev proxy (`localhost:5173`) forwards requests to the BFF (`localhost:8
 **Root cause:** The workflow's default `GITHUB_TOKEN` is scoped to the current repository and cannot always read another private repository.
 **Fix:** Remove cross-repo checkout from `tm-ui-bff` `test-frontend` and use committed generated schema types as the CI input. Regression check: `test-frontend` logs must not contain "Check out tm-core-api" and must still run `npm run build` + `npm test` successfully.
 
-### Node 20 Deprecation Warnings in GitHub Actions
+### Node Runtime Migration to 24 Complete
 
-**Symptom:** Pipelines warn that JavaScript actions running on Node 20 will be forced to Node 24 after June 2, 2026.
-**Root cause:** Workflows used older action majors and did not opt into Node 24 runtime yet.
-**Fix:** Set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` at workflow level and upgrade action majors (`actions/checkout@v5`, `actions/setup-java@v5`, `actions/setup-node@v5`, `docker/build-push-action@v6`, `docker/login-action@v4`, `docker/setup-buildx-action@v4`). Regression check: pipeline runs should no longer emit Node 20 deprecation warnings.
+**Symptom:** Pipeline logs should not show Node.js 20 deprecation warnings since the runtime is Node 24.
+**Root cause:** Workflows have `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` and upgraded actions.
+**Fix:** If warnings appear, upgrade artifact upload to `actions/upload-artifact@v7`.
+Regression check: code-repo publish jobs should no longer emit Node 20 deprecation warnings for upload-artifact.
 
 ### Tokenless Orchestrator E2E Triggering
 
@@ -317,9 +318,9 @@ The Vite dev proxy (`localhost:5173`) forwards requests to the BFF (`localhost:8
 
 ### Node.js 20 Deprecation in GitHub Actions
 
-**Symptom:** Pipeline logs show: `Node.js 20 actions are deprecated. The following actions are running on Node.js 20 and may not work as expected: actions/upload-artifact@v4. Actions will be forced to run with Node.js 24 by default starting June 2nd, 2026.`
-**Root cause:** Actions like `upload-artifact@v4` run on Node.js 20 runtime, which GitHub will disable after June 2, 2026. Workflows did not set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` to opt in early.
-**Fix:** Set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true` in workflow `env` and upgrade artifact upload to `actions/upload-artifact@v7`. Existing modern actions (`actions/checkout@v5`, `actions/setup-java@v5`, `docker/login-action@v4`) already support Node 24. Regression check: code-repo publish jobs should no longer emit Node 20 deprecation warnings for upload-artifact.
+**Symptom:** Pipelines warn that JavaScript actions running on Node 20 will be forced to Node 24 after June 2, 2026.
+**Root cause:** Workflows used older action majors and did not opt into Node 24 runtime yet.
+**Fix:** Set `FORCE_JAVASCRIPT_ACTIONS_TO_NODE24=true` at workflow level and upgrade action majors (`actions/checkout@v5`, `actions/setup-java@v5`, `actions/setup-node@v5`, `docker/build-push-action@v6`, `docker/login-action@v4`, `docker/setup-buildx-action@v4`). Regression check: pipeline runs should no longer emit Node 20 deprecation warnings.
 
 ### Dependabot Docker Update Fails in tm-orchestrator
 
@@ -373,7 +374,9 @@ The Vite dev proxy (`localhost:5173`) forwards requests to the BFF (`localhost:8
 
 **Symptom:** `tm-ui-bff` `scan-java` Grype step fails on `github.com/docker/docker v28.5.2+incompatible` (`GHSA-x744-4wpc-v9h2`, `GHSA-pxq6-2prw-chj9`) even though the shipped BFF image does not contain Docker CLI/client code.
 **Root cause:** `grype dir:.` catalogs the whole repository, including test-only Maven metadata from `org.testcontainers` / `docker-java`; Grype then surfaces Docker Go-module advisories from that non-runtime test stack. `docker-java` 3.7.1 is already the latest release, so there is no version-only remediation inside the current test chain.
-**Fix:** In `tm-ui-bff/.github/workflows/pipeline.yml`, generate a CycloneDX SBOM with `mvn -pl bff-service -am -DskipTests package org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom -DincludeTestScope=false -DoutputFormat=json -DoutputName=sbom-bff-runtime`, then scan `sbom:target/sbom-bff-runtime.json` with Grype instead of `dir:.`. Regression check: the generated `target/sbom-bff-runtime.json` must contain no `testcontainers`, `docker-java`, or `github.com/docker/docker` entries, and `scan-java` must still fail on real runtime HIGH findings.
+**Fix:** In `tm-ui-bff/.github/workflows/pipeline.yml`, generate a CycloneDX SBOM with `mvn -pl bff-service -am -DskipTests package org.cyclonedx:cyclonedx-maven-plugin:2.9.1:makeAggregateBom -DincludeTestScope=false -DoutputFormat=json -DoutputName=sbom-bff-runtime`, then scan `sbom:target/sbom-bff-runtime.json` with Grype instead of `dir:.`
+
+. Regression check: the generated `target/sbom-bff-runtime.json` must contain no `testcontainers`, `docker-java`, or `github.com/docker/docker` entries, and `scan-java` must still fail on real runtime HIGH findings.
 
 ### tm-ui-bff Pipeline Node 20 Warning from `actions/cache`
 
@@ -504,6 +507,4 @@ Regression check: `GET /favicon.ico` returns 200 consistently, and missing stati
 **Symptom:** `tm-ui-bff` `test-frontend` job logs are noisy with repeated React Router future-flag warnings, TanStack Query `Query data cannot be undefined` messages in `TaskMatrix` tests, Radix `DialogContent` missing description warnings, and `No routes matched location "/login"` during `AppLayout` logout test.
 **Root cause:** Test harness defaults were too permissive: React Router warnings were not filtered in the shared test setup, `TaskMatrix` seeded query data was still considered stale and refetched without a mocked return, dialog components lacked `Dialog.Description`, and the `AppLayout` test router had no `/login` route despite logout navigation.
 **Fix:** Add a targeted React Router warning filter in `frontend-client/src/test/setup.ts`, make `TaskMatrix` test QueryClient treat seeded cache as fresh (`staleTime: Infinity`, `refetchOnMount: false`), add `Dialog.Description` to `TaskDialog` and `MfaEnrollDialog`, and include a `/login` route in `AppLayout.test.tsx`. Regression check: `npm test` in `tm-ui-bff/frontend-client` should no longer print those warning classes while preserving failing-test visibility.
-
-
 
