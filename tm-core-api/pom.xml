@@ -31,6 +31,8 @@
     <!-- Docker image used by integration tests (CODING_PATTERNS.md guardrail §3).
          Override at CI time: mvn verify -Dpostgresql.test.image=postgres:18-alpine -->
     <postgresql.test.image>postgres:17-alpine</postgresql.test.image>
+         Override at CI time (Linux): mvn test -Ddocker.host=unix:///var/run/docker.sock -->
+    <docker.host>npipe:////./pipe/docker_engine</docker.host>
 
     <!-- Override managed Testcontainers: 1.19.x sends Docker API v1.32 which is rejected
          by Docker Engine 29.x (requires >=1.41). 1.20.x uses docker-java 3.4.x that negotiates
@@ -172,11 +174,13 @@
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>postgresql</artifactId>
+      <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
     <dependency>
       <groupId>org.testcontainers</groupId>
       <artifactId>junit-jupiter</artifactId>
+      <version>${testcontainers.version}</version>
       <scope>test</scope>
     </dependency>
 
@@ -252,7 +256,7 @@
                API_VERSION (docker-java env var) forces Docker API v1.41 (Engine 29.x minimum is 1.41).
                api.version covers the system-property read path in DefaultDockerClientConfig. -->
           <environmentVariables>
-            <DOCKER_HOST>npipe:////./pipe/docker_engine</DOCKER_HOST>
+            <DOCKER_HOST>${docker.host}</DOCKER_HOST>
             <API_VERSION>1.41</API_VERSION>
           </environmentVariables>
           <systemPropertyVariables>
