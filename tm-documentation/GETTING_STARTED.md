@@ -7,7 +7,7 @@
 | Rancher Desktop | Latest | Container runtime — use `dockerd (moby)` mode |
 | JDK | 17 | Spring Boot services |
 | Maven | 3.9 | Java builds |
-| Node.js | 20 | React frontend |
+| Node.js | 24 | React frontend |
 | Git | 2.x | Version control |
 | `kubectl` + `helm` | Latest / 3.x | Production Kubernetes (optional) |
 

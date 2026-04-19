@@ -143,6 +143,30 @@
         </configuration>
       </plugin>
 
+      <!-- Integration tests — runs *IT.java files during verify phase -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <configuration>
+          <environmentVariables>
+            <DOCKER_HOST>${docker.host}</DOCKER_HOST>
+            <API_VERSION>1.41</API_VERSION>
+          </environmentVariables>
+          <systemPropertyVariables>
+            <redis.test.image>${redis.test.image}</redis.test.image>
+            <api.version>1.41</api.version>
+          </systemPropertyVariables>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
     </plugins>
   </build>
 

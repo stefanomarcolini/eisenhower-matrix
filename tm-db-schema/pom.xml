@@ -124,6 +124,31 @@
         </configuration>
       </plugin>
 
+      <!-- Integration tests — runs *IT.java files during verify phase -->
+      <plugin>
+        <groupId>org.apache.maven.plugins</groupId>
+        <artifactId>maven-failsafe-plugin</artifactId>
+        <version>${surefire.version}</version>
+        <configuration>
+          <environmentVariables>
+            <DOCKER_HOST>npipe:////./pipe/docker_engine</DOCKER_HOST>
+            <API_VERSION>1.41</API_VERSION>
+          </environmentVariables>
+          <systemPropertyVariables>
+            <postgresql.test.image>${postgresql.test.image}</postgresql.test.image>
+            <api.version>1.41</api.version>
+          </systemPropertyVariables>
+        </configuration>
+        <executions>
+          <execution>
+            <goals>
+              <goal>integration-test</goal>
+              <goal>verify</goal>
+            </goals>
+          </execution>
+        </executions>
+      </plugin>
+
       <!--
         Liquibase Maven plugin — for manual local runs:
           mvn liquibase:update   -DDB_HOST=... -DDB_NAME=... -DDB_USERNAME=... -DDB_PASSWORD=...
