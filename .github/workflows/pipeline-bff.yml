@@ -140,7 +140,7 @@ jobs:
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
-          password: ${{ secrets.GHCR_TOKEN }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Set image tag
         id: tag
@@ -203,6 +203,6 @@ jobs:
           docker buildx build .
           --file tm-ui-bff/Dockerfile
           --push
-          --tag ghcr.io/sm-task-manager/tm-ui-bff:${{ steps.tag.outputs.value }}
-          --tag ghcr.io/sm-task-manager/tm-ui-bff:latest
+          --tag ghcr.io/stefanomarcolini/tm-ui-bff:${{ steps.tag.outputs.value }}
+          --tag ghcr.io/stefanomarcolini/tm-ui-bff:latest
           --cache-from type=gha
