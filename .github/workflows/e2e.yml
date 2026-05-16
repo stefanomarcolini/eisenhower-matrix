@@ -29,7 +29,7 @@ jobs:
       packages: read
 
     steps:
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
 
       # Generate a self-contained CI .env. Repository secrets still override the
       # defaults, but a standard E2E run does not require app runtime secrets.
