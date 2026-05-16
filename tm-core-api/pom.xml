@@ -23,7 +23,7 @@
 
     <!-- Versions not managed by the Spring Boot BOM -->
     <totp.version>1.7.1</totp.version>
-    <logstash.version>7.4</logstash.version>
+    <logstash.version>9.0</logstash.version>
     <bucket4j.version>8.7.0</bucket4j.version>
     <openapi-generator.version>7.4.0</openapi-generator.version>
     <wiremock.version>4.2.1</wiremock.version>
