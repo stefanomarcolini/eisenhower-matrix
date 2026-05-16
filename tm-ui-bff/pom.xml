@@ -42,7 +42,7 @@
     <tomcat-embed-core.version>11.0.21</tomcat-embed-core.version>
     <spring-security-web.version>7.0.5</spring-security-web.version>
     <commons-compress>1.28.0</commons-compress>
-    <commons-io.version>2.21.0</commons-io.version>
+    <commons-io.version>2.22.0</commons-io.version>
     <wiremock-spring-boot.version>4.2.1</wiremock-spring-boot.version>
     <testcontainers-junit-jupiter.version>1.21.4</testcontainers-junit-jupiter.version>
   </properties>
