@@ -31,7 +31,7 @@
 
     <!-- Plugin versions -->
     <maven-failsafe-plugin.version>3.5.2</maven-failsafe-plugin.version>
-    <maven-surefire-plugin.version>3.5.2</maven-surefire-plugin.version>
+    <maven-surefire-plugin.version>3.5.5</maven-surefire-plugin.version>
 
     <!--
       E2E connection parameters — overridden by mvn -De2e.* flags from the CI pipeline.
