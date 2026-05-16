@@ -22,7 +22,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <liquibase.version>5.0.2</liquibase.version>
-    <postgresql.version>42.7.7</postgresql.version>
+    <postgresql.version>42.7.11</postgresql.version>
     <testcontainers.version>2.0.4</testcontainers.version>
     <junit.version>5.10.2</junit.version>
     <surefire.version>3.2.5</surefire.version>
@@ -37,7 +37,7 @@
     <!-- Maven property defaults for the Liquibase Maven plugin.
          Override on the command line: mvn liquibase:update -DDB_HOST=myhost -->
     <DB_PORT>5432</DB_PORT>
-    <tomcat-embed-core.version>11.0.20</tomcat-embed-core.version>
+    <tomcat-embed-core.version>11.0.21</tomcat-embed-core.version>
   </properties>
 
   <dependencyManagement>
