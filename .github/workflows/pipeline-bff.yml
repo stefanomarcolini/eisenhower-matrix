@@ -11,10 +11,13 @@ on:
     paths:
       - 'tm-ui-bff/**'
       - 'pom.xml'
+      - '.github/workflows/pipeline-bff.yml'
   pull_request:
     paths:
       - 'tm-ui-bff/**'
       - 'pom.xml'
+      - '.github/workflows/pipeline-bff.yml'
+  workflow_dispatch:
 
 jobs:
 
