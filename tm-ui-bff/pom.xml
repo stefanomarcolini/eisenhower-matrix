@@ -26,7 +26,7 @@
     <project.build.sourceEncoding>UTF-8</project.build.sourceEncoding>
 
     <!-- Versions not managed by the Spring Boot BOM -->
-    <bucket4j.version>8.7.0</bucket4j.version>
+    <bucket4j.version>8.10.1</bucket4j.version>
 
     <!-- Override managed Testcontainers — same reason as tm-core-api (CODING_PATTERNS.md §10) -->
     <testcontainers.version>2.0.4</testcontainers.version>
