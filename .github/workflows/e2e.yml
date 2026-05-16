@@ -1,13 +1,15 @@
 name: E2E Tests
 
 # Uses latest GHCR images via docker-compose.
-# Requires either package-level Actions access to the private GHCR packages,
-# or GHCR_USERNAME / GHCR_TOKEN configured for cross-repo reads.
+# Pulls from ghcr.io/stefanomarcolini/ using GITHUB_TOKEN (no extra secrets needed).
 
 on:
   workflow_dispatch:
   push:
     branches: [main]
+    paths:
+      - 'tm-orchestrator/**'
+      - '.github/workflows/e2e.yml'
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -32,6 +34,7 @@ jobs:
       # Generate a self-contained CI .env. Repository secrets still override the
       # defaults, but a standard E2E run does not require app runtime secrets.
       - name: Create .env
+        working-directory: tm-orchestrator
         env:
           SECRET_DB_NAME: ${{ secrets.DB_NAME }}
           SECRET_DB_USERNAME: ${{ secrets.DB_USERNAME }}
@@ -106,30 +109,31 @@ jobs:
         uses: docker/login-action@v4
         with:
           registry: ghcr.io
-          # Prefer dedicated cross-repo reader credentials.
-          # Fallback to the repository token when package-level Actions access is granted.
-          username: ${{ vars.GHCR_USERNAME != '' && vars.GHCR_USERNAME || github.actor }}
-          password: ${{ secrets.GHCR_TOKEN != '' && secrets.GHCR_TOKEN || secrets.GITHUB_TOKEN }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Verify GHCR package access
         run: |
           set -e
           for image in tm-db-schema tm-core-api tm-ui-bff; do
-            if ! docker manifest inspect "ghcr.io/sm-task-manager/${image}:latest" >/dev/null 2>&1; then
-              echo "::error::Cannot access ghcr.io/sm-task-manager/${image}:latest."
-              echo "::error::Configure GHCR_USERNAME action variable and GHCR_TOKEN secret with read:packages, or grant this repository Actions access in the package settings."
+            if ! docker manifest inspect "ghcr.io/stefanomarcolini/${image}:latest" >/dev/null 2>&1; then
+              echo "::error::Cannot access ghcr.io/stefanomarcolini/${image}:latest."
+              echo "::error::Ensure the publish job has run successfully on main at least once."
               exit 1
             fi
           done
 
       - name: Pull latest images
+        working-directory: tm-orchestrator
         run: docker compose pull --quiet
 
       # Override file adds mailpit + mock-oauth2 + dev SMTP/OAuth2 settings
       - name: Start stack
+        working-directory: tm-orchestrator
         run: docker compose -f docker-compose.yml -f docker-compose.override.yml up -d
 
       - name: Wait for BFF health
+        working-directory: tm-orchestrator
         run: |
           echo "Waiting for frontend-bff to be healthy..."
           for i in $(seq 1 30); do
@@ -147,6 +151,7 @@ jobs:
           exit 1
 
       - name: Auth contract smoke test
+        working-directory: tm-orchestrator
         run: |
           set -euo pipefail
 
@@ -273,10 +278,8 @@ jobs:
           distribution: temurin
           cache: maven
 
-      # Selenium E2E suite — added in Session 16
-      # APP_BASE_URL uses frontend-bff hostname so reset-password links in emails
-      # are navigable by the Selenium browser inside the Docker network.
       - name: Run E2E tests
+        working-directory: tm-orchestrator/e2e
         run: |
           mvn --no-transfer-progress verify \
             -De2e.app.url=http://frontend-bff:8080 \
@@ -285,10 +288,10 @@ jobs:
             -De2e.mailpit.url=http://localhost:8025 \
             -De2e.admin.email="$E2E_ADMIN_EMAIL" \
             -De2e.admin.password="$E2E_ADMIN_PASSWORD"
-        working-directory: e2e
 
       - name: Print diagnostics on failure
         if: failure()
+        working-directory: tm-orchestrator
         run: |
           echo "=== docker compose ps ==="
           docker compose ps || true
@@ -306,5 +309,5 @@ jobs:
 
       - name: Tear down stack
         if: always()
+        working-directory: tm-orchestrator
         run: docker compose -f docker-compose.yml -f docker-compose.override.yml down -v
-
