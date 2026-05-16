@@ -9,7 +9,14 @@ ARG LIQUIBASE_IMAGE_TAG=5.0
 # from CODING_PATTERNS.md §11 to this non-compiled module).
 FROM maven:3.9-eclipse-temurin-17-alpine AS deps
 WORKDIR /build
-COPY pom.xml .
+
+# Copy root pom to install parent artifacts — required for child modules
+COPY pom.xml ./pom.xml
+RUN mvn install -N -q
+
+# Copy module pom and download dependencies
+COPY tm-db-schema/pom.xml tm-db-schema/pom.xml
+WORKDIR /build/tm-db-schema
 RUN mvn dependency:copy-dependencies \
       -DincludeArtifactIds=postgresql \
       -DoutputDirectory=/deps \
@@ -25,10 +32,10 @@ FROM liquibase/liquibase:${LIQUIBASE_IMAGE_TAG}
 COPY --from=deps /deps/postgresql-*.jar /liquibase/lib/
 
 # Copy changelogs
-COPY src/main/resources/db/changelog/ /liquibase/changelog/
+COPY tm-db-schema/src/main/resources/db/changelog/ /liquibase/changelog/
 
 # Copy and enable the entrypoint script
-COPY docker-entrypoint.sh /docker-entrypoint.sh
+COPY tm-db-schema/docker-entrypoint.sh /docker-entrypoint.sh
 USER root
 # Strip Windows CRLF line endings that break the shebang on Linux, then make executable.
 # apt-get upgrade patches OS-level CVEs in deb packages.

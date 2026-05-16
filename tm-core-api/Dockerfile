@@ -7,14 +7,20 @@
 FROM maven:3.9-eclipse-temurin-17 AS build
 WORKDIR /app
 
-# Cache Maven dependency download — only re-downloaded when pom.xml changes
-COPY pom.xml .
+# Install root POM to local Maven repo (non-recursive — child modules not present in Docker context)
+COPY pom.xml ./pom.xml
+RUN mvn install -N -q
+
+# Cache Maven dependency download — only re-downloaded when pom.xml changes.
+# Module pom goes into a subdirectory so relativePath=.. resolves to the root pom above.
+COPY tm-core-api/pom.xml ./tm-core-api/pom.xml
+WORKDIR /app/tm-core-api
 RUN mvn dependency:go-offline -q
 
 # Copy source and OpenAPI spec; build skipping tests
 # api-spec/ is needed by openapi-generator-maven-plugin at compile time
-COPY api-spec ./api-spec
-COPY src ./src
+COPY tm-core-api/api-spec ./api-spec
+COPY tm-core-api/src ./src
 RUN mvn clean package -DskipTests
 
 # ── Stage 2: Minimal JRE runtime ─────────────────────────────────────────────
@@ -32,7 +38,7 @@ RUN apt-get update \
 # Non-root user — principle of least privilege
 USER app
 
-COPY --from=build /app/target/*.jar app.jar
+COPY --from=build /app/tm-core-api/target/*.jar app.jar
 
 EXPOSE 8080
 
