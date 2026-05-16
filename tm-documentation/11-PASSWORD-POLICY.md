@@ -51,7 +51,7 @@ Scoring is done client-side using [`@zxcvbn-ts/zxcvbn`](https://github.com/zxcvb
 
 ## 3. Password Age Policy
 
-Configurable via environment variables in the Core API (see `ENV_VARS.md`):
+Configurable via environment variables in the Core API (see `12-ENV-VARS.md`):
 
 | Variable | Default | Meaning |
 | :--- | :--- | :--- |

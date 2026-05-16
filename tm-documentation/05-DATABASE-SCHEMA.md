@@ -2,7 +2,7 @@
 
 **Database:** PostgreSQL 17
 **Migration tool:** Liquibase (YAML changesets, owned by `tm-db-schema`)
-**Tenancy model:** Row-level (single schema, single database; see `MULTI_TENANCY.md`)
+**Tenancy model:** Row-level (single schema, single database; see `08-MULTI-TENANCY.md`)
 
 ---
 
@@ -95,7 +95,7 @@ A cleanup job (Spring `@Scheduled`, daily) deletes expired and used tokens older
 | `user_id` | UUID | FK → `users.id`, NOT NULL | Owning user |
 | `title` | VARCHAR(255) | NOT NULL | |
 | `description` | TEXT | | Optional |
-| `state` | VARCHAR(20) | NOT NULL, DEFAULT `'PLANNED'`, CHECK IN `('PLANNED', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE')` | See state machine in `PROJECT_OVERVIEW.md §3` |
+| `state` | VARCHAR(20) | NOT NULL, DEFAULT `'PLANNED'`, CHECK IN `('PLANNED', 'IN_PROGRESS', 'COMPLETED', 'OVERDUE')` | See state machine in `01-PROJECT-OVERVIEW.md §3` |
 | `importance` | VARCHAR(10) | NOT NULL, CHECK IN `('LOW', 'MEDIUM', 'HIGH')` | |
 | `urgency` | VARCHAR(10) | NOT NULL, CHECK IN `('LOW', 'MEDIUM', 'HIGH')` | |
 | `due_date` | DATE | | Optional |
@@ -149,7 +149,7 @@ WHERE due_date < CURRENT_DATE
   AND deleted_at IS NULL;
 ```
 
-The actual implementation uses a JPQL `SELECT` followed by individual JPA entity updates (not a bulk `UPDATE`) so that a `task_history` row can be written per transition. See `CODING_PATTERNS.md §7` for the full implementation pattern.
+The actual implementation uses a JPQL `SELECT` followed by individual JPA entity updates (not a bulk `UPDATE`) so that a `task_history` row can be written per transition. See `09-CODING-PATTERNS.md §7` for the full implementation pattern.
 
 The scheduler bypasses the Hibernate tenant filter (must call `session.disableFilter("tenantFilter")`). It must write a `task_history` row for each task it transitions (use the task's `user_id` as `changed_by`).
 
@@ -167,7 +167,7 @@ Both scheduled jobs (overdue updater and token cleanup) are **idempotent** — r
 | `004-create-tasks.yaml` | `tasks` table |
 | `005-create-indexes.yaml` | All indexes on `tasks` and `users` |
 | `006-create-password-reset-tokens.yaml` | `password_reset_tokens` table + its indexes |
-| `007-bootstrap-admin.yaml` | Default tenant + bootstrap ADMIN user (all environments). See `CODING_PATTERNS.md §12`. |
+| `007-bootstrap-admin.yaml` | Default tenant + bootstrap ADMIN user (all environments). See `09-CODING-PATTERNS.md §12`. |
 | `008-create-task-history.yaml` | `task_history` table + `idx_task_history_task_id` index |
 
 ---

@@ -54,7 +54,7 @@ All runtime configuration is injected via environment variables. No secrets or e
 | `SERVER_PORT` | No | `8080` | |
 | `SPRING_PROFILES_ACTIVE` | No | `prod` | |
 
-> Microsoft endpoints use the `consumers` tenant and are hardcoded in `application.yml` — no `MICROSOFT_TENANT_ID` variable is needed. See `AUTH_CONFIG.md §3`.
+> Microsoft endpoints use the `consumers` tenant and are hardcoded in `application.yml` — no `MICROSOFT_TENANT_ID` variable is needed. See `07-AUTH-CONFIG.md §3`.
 
 ---
 
@@ -84,13 +84,12 @@ All runtime configuration is injected via environment variables. No secrets or e
 
 | Name | Scope | Description |
 | :--- | :--- | :--- |
-| `GHCR_USERNAME` | `tm-orchestrator` (Actions variable) | GitHub username of the machine user that owns `GHCR_TOKEN`; used for cross-repo GHCR pulls when package-level Actions access is not granted. |
-| `GHCR_TOKEN` | Each code repo | PAT with `packages: write` for GHCR pushes |
+| `GHCR_TOKEN` | All workflows | Classic PAT with `read:packages` scope. Used by the E2E pipeline to pull images from GHCR; falls back to `GITHUB_TOKEN` when absent. Module publish jobs use `GITHUB_TOKEN` directly — no PAT needed for push. |
 | `DB_PASSWORD` | Each code repo | Integration test containers |
 | `INTERNAL_JWT_SECRET` | `tm-core-api` | Integration tests |
 | `MFA_ENCRYPTION_KEY` | `tm-core-api` | Integration tests |
 
-`tm-orchestrator` E2E can generate non-production defaults for DB/JWT/MFA/bootstrap-admin values when those repository secrets are absent. GHCR access is the only hard prerequisite for pulling sibling private images.
+`tm-orchestrator` E2E generates non-production defaults for DB/JWT/MFA/bootstrap-admin values when those secrets are absent. `GHCR_TOKEN` is the only hard prerequisite for pulling images from GHCR in CI.
 
 ---
 

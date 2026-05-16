@@ -59,7 +59,7 @@ Not in the public OpenAPI spec. All endpoints are network-isolated — reachable
 | `POST` | `/internal/auth/forgot-password` | `{ email, tenantId }` | `204` (always, even if email not found) |
 | `POST` | `/internal/auth/reset-password` | `{ token, newPassword }` | `204` on success; `400` if invalid/expired |
 
-**`mfaRequired`** — BFF uses this to branch into the MFA partial-session flow (see `CODING_PATTERNS.md §3`).
+**`mfaRequired`** — BFF uses this to branch into the MFA partial-session flow (see `09-CODING-PATTERNS.md §3`).
 **`passwordWarning`** — BFF stores in session; surfaced via `GET /auth/session`.
 
 ---
@@ -80,7 +80,7 @@ All endpoints require a valid session. All are tenant-scoped.
 
 **Task schema:** `id` (UUID, read-only), `title` (required, max 255), `description` (optional), `state` (`PLANNED`/`IN_PROGRESS`/`COMPLETED`/`OVERDUE`), `importance` (`LOW`/`MEDIUM`/`HIGH`), `urgency` (`LOW`/`MEDIUM`/`HIGH`), `dueDate` (ISO 8601 date), `createdAt`, `updatedAt` (both read-only). `deletedAt` exists in the database but is never included in API responses — filtering is handled at the persistence layer via Hibernate `@Where`.
 
-State transitions are enforced by the API — see `PROJECT_OVERVIEW.md §3`.
+State transitions are enforced by the API — see `01-PROJECT-OVERVIEW.md §3`.
 
 ---
 
