@@ -8,7 +8,13 @@ env:
 on:
   push:
     branches: [main]
+    paths:
+      - 'tm-core-api/**'
+      - 'pom.xml'
   pull_request:
+    paths:
+      - 'tm-core-api/**'
+      - 'pom.xml'
 
 jobs:
 
@@ -27,13 +33,13 @@ jobs:
           cache: maven
 
       - name: Run tests
-        run: mvn --no-transfer-progress verify
+        run: mvn --no-transfer-progress verify -pl tm-core-api
         env:
           INTERNAL_JWT_SECRET: ${{ secrets.INTERNAL_JWT_SECRET }}
           MFA_ENCRYPTION_KEY:  ${{ secrets.MFA_ENCRYPTION_KEY }}
 
   # ── Stage 2: Dependency vulnerability scan ─────────────────────────────────
-  # Grype scans the repository filesystem and fails on HIGH/CRITICAL findings.
+  # Grype scans the module directory and fails on HIGH/CRITICAL findings.
   scan:
     runs-on: ubuntu-latest
     needs: test
@@ -52,12 +58,11 @@ jobs:
           sudo install -m 0755 grype /usr/local/bin/grype
 
       - name: Grype dependency scan
-        run: grype dir:. --config .grype.yaml --fail-on high
+        run: grype dir:tm-core-api --config tm-core-api/.grype.yaml --fail-on high
 
   # ── Stage 4: Containerise, scan image, push to GHCR ─────────────────────────
-  # This stage verifies Syft/Grype release checksums before execution so scanner
-  # binaries are supply-chain attested for audit and compliance evidence.
-  # Only runs on main-branch pushes — not on pull requests.
+  # Syft/Grype release checksums are verified before execution for supply-chain
+  # attestation. Only runs on main-branch pushes — not on pull requests.
   publish:
     runs-on: ubuntu-latest
     needs: [test, scan]
@@ -108,17 +113,17 @@ jobs:
       - name: Build image (local)
         run: >-
           docker buildx build .
+          --file tm-core-api/Dockerfile
           --load
           --tag tm-core-api:${{ steps.tag.outputs.value }}
           --cache-from type=gha
           --cache-to type=gha,mode=max
 
-
       - name: Generate SBOM (CycloneDX JSON)
         run: syft "tm-core-api:${{ steps.tag.outputs.value }}" -o cyclonedx-json=sbom.tm-core-api.json
 
       - name: Grype image scan
-        run: grype "tm-core-api:${{ steps.tag.outputs.value }}" --config .grype.yaml --fail-on high
+        run: grype "tm-core-api:${{ steps.tag.outputs.value }}" --config tm-core-api/.grype.yaml --fail-on high
 
       - name: Upload SBOM and checksum evidence
         uses: actions/upload-artifact@v7
@@ -136,8 +141,8 @@ jobs:
       - name: Push image to GHCR
         run: >-
           docker buildx build .
+          --file tm-core-api/Dockerfile
           --push
           --tag ghcr.io/sm-task-manager/tm-core-api:${{ steps.tag.outputs.value }}
           --tag ghcr.io/sm-task-manager/tm-core-api:latest
           --cache-from type=gha
-
