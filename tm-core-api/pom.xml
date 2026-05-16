@@ -25,7 +25,7 @@
     <totp.version>1.7.1</totp.version>
     <logstash.version>7.4</logstash.version>
     <bucket4j.version>8.7.0</bucket4j.version>
-    <openapi-generator.version>7.4.0</openapi-generator.version>
+    <openapi-generator.version>7.22.0</openapi-generator.version>
     <wiremock.version>4.2.1</wiremock.version>
 
     <!-- Docker image used by integration tests (CODING_PATTERNS.md guardrail §3).
