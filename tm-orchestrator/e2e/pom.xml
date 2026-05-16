@@ -26,7 +26,7 @@
     <!-- Library versions -->
     <selenium.version>4.27.0</selenium.version>
     <junit-jupiter.version>5.11.4</junit-jupiter.version>
-    <jackson.version>2.17.2</jackson.version>
+    <jackson.version>2.21.3</jackson.version>
     <totp.version>1.7.1</totp.version>
 
     <!-- Plugin versions -->
