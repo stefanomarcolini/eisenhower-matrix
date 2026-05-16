@@ -11,10 +11,13 @@ on:
     paths:
       - 'tm-core-api/**'
       - 'pom.xml'
+      - '.github/workflows/pipeline-core-api.yml'
   pull_request:
     paths:
       - 'tm-core-api/**'
       - 'pom.xml'
+      - '.github/workflows/pipeline-core-api.yml'
+  workflow_dispatch:
 
 jobs:
 

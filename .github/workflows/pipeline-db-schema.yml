@@ -11,10 +11,13 @@ on:
     paths:
       - 'tm-db-schema/**'
       - 'pom.xml'
+      - '.github/workflows/pipeline-db-schema.yml'
   pull_request:
     paths:
       - 'tm-db-schema/**'
       - 'pom.xml'
+      - '.github/workflows/pipeline-db-schema.yml'
+  workflow_dispatch:
 
 jobs:
 
