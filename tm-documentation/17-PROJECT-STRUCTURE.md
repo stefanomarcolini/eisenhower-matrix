@@ -6,6 +6,8 @@
 
 ```
 eisenhower-matrix-repository/  ← single git repo
+├── .github/
+│   └── workflows/             ← all CI/CD pipelines live here
 ├── tm-documentation/
 ├── tm-orchestrator/
 ├── tm-core-api/
@@ -27,12 +29,21 @@ tm-documentation/
 
 ---
 
+## Root `.github/workflows/`
+```
+.github/workflows/
+├── pipeline-core-api.yml  ← Core API: test → scan → publish
+├── pipeline-bff.yml       ← BFF: test → scan → publish
+├── pipeline-db-schema.yml ← DB Schema: test → scan → publish
+├── e2e.yml                ← workflow_dispatch + main-push triggers
+└── release.yml            ← Helm chart publish on semver tag
+```
+
+---
+
 ## `tm-orchestrator`
 ```
 tm-orchestrator/
-├── .github/workflows/
-│   ├── e2e.yml            ← workflow_dispatch + main-push triggers
-│   └── release.yml        ← Helm chart publish
 ├── helm/task-manager/
 │   ├── Chart.yaml
 │   ├── values.yaml
@@ -53,7 +64,6 @@ tm-orchestrator/
 ## `tm-core-api`
 ```
 tm-core-api/
-├── .github/workflows/pipeline.yml
 ├── src/
 │   ├── main/java/com/tm/core/
 │   │   ├── domain/            ← Entities, Value Objects
@@ -72,7 +82,6 @@ tm-core-api/
 ## `tm-ui-bff`
 ```
 tm-ui-bff/
-├── .github/workflows/pipeline.yml
 ├── bff-service/
 │   ├── src/main/java/
 │   │   ├── config/
@@ -99,7 +108,6 @@ tm-ui-bff/
 ## `tm-db-schema`
 ```
 tm-db-schema/
-├── .github/workflows/pipeline.yml
 ├── src/main/resources/db/changelog/
 │   ├── db.changelog-master.yaml
 │   ├── 001-create-tenants.yaml

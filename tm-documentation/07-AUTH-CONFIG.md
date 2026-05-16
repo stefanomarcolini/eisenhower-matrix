@@ -98,12 +98,12 @@ Core API validates BCrypt hash. Returns `401` on wrong credentials or if email b
 ---
 
 ## 9. Password Reset (Local users only)
-See `PASSWORD_POLICY.md §4`. BFF calls `/internal/auth/forgot-password` → Core API generates SHA-256-hashed token, stores in `password_reset_tokens`, sends email via Spring Mail. Reset link valid for `PASSWORD_RESET_TOKEN_EXPIRY_HOURS` (default 1h), single-use.
+See `11-PASSWORD-POLICY.md §4`. BFF calls `/internal/auth/forgot-password` → Core API generates SHA-256-hashed token, stores in `password_reset_tokens`, sends email via Spring Mail. Reset link valid for `PASSWORD_RESET_TOKEN_EXPIRY_HOURS` (default 1h), single-use.
 
 ---
 
 ## 10. Password Age Warning (Local users only)
-At login, if `now() - password_changed_at >= PASSWORD_AGE_WARNING_DAYS` (default 80), the login response includes `passwordWarning: true`. BFF stores in session; React shows a non-blocking banner. See `PASSWORD_POLICY.md §3`.
+At login, if `now() - password_changed_at >= PASSWORD_AGE_WARNING_DAYS` (default 80), the login response includes `passwordWarning: true`. BFF stores in session; React shows a non-blocking banner. See `11-PASSWORD-POLICY.md §3`.
 
 ---
 
@@ -162,4 +162,4 @@ Bean Validation (`@Valid`, `@NotBlank`, `@Size`, `@Email`) on all DTOs. Fails wi
 ### BFF CORS
 `CorsConfig.java` (dev profile only) allows `http://localhost:5173`. No CORS in production.
 
-For the full SQL injection and OWASP API Security Top 10 threat model with implementation detail, see `API_SECURITY.md`.
+For the full SQL injection and OWASP API Security Top 10 threat model with implementation detail, see `10-API-SECURITY.md`.

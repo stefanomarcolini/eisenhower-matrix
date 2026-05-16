@@ -70,9 +70,9 @@ Applied automatically with `docker-compose up`:
 | `mock-oauth2` | `ghcr.io/navikt/mock-oauth2-server:x.y.z` | `9000:8080` | Mock OIDC — no real IdP credentials needed |
 | `mailpit` | `axllent/mailpit:vX.Y` | `8025:8025` (UI), `1025:1025` (SMTP) | Captures all outbound emails. Web UI at `http://localhost:8025`. |
 
-Also sets `SPRING_PROFILES_ACTIVE=dev`, exposes JVM debug ports (`5005` Core API, `5006` BFF). See `OBSERVABILITY.md §4`.
+Also sets `SPRING_PROFILES_ACTIVE=dev`, exposes JVM debug ports (`5005` Core API, `5006` BFF). See `13-OBSERVABILITY.md §4`.
 
-For stop commands, see `DEVELOPMENT_ENV.md §7`.
+For stop commands, see `04-DEVELOPMENT-ENV.md §7`.
 
 ## 3. Scalability
 - Core API is stateless: `docker-compose up --scale core-api=3`.
@@ -83,12 +83,12 @@ For stop commands, see `DEVELOPMENT_ENV.md §7`.
 Lives exclusively in `tm-orchestrator/helm/task-manager/`. Published to `oci://ghcr.io/sm-task-manager/charts/task-manager` by the `tm-orchestrator` release pipeline.
 
 ## 5. Email Service
-- **Production:** External SMTP relay (e.g., AWS SES, SendGrid, Mailgun). Configured via `SMTP_*` env vars (see `ENV_VARS.md`).
+- **Production:** External SMTP relay (e.g., AWS SES, SendGrid, Mailgun). Configured via `SMTP_*` env vars (see `12-ENV-VARS.md`).
 - **Local dev:** Mailpit (`axllent/mailpit`). Drop-in SMTP server; no credentials required. Set `SMTP_HOST=mailpit`, `SMTP_PORT=1025`, `SMTP_TLS_ENABLED=false`.
 - **CI / integration tests:** WireMock stubs outbound SMTP calls. No real emails sent.
 
 ## 6. Database Versioning
-Liquibase YAML changesets in `tm-db-schema`. Init image pattern — see `DATABASE_SCHEMA.md` and `tm-db-schema/README.md`.
+Liquibase YAML changesets in `tm-db-schema`. Init image pattern — see `05-DATABASE-SCHEMA.md` and `tm-db-schema/README.md`.
 
 ## 7. Environment Variables & Secrets
-All configuration via environment variables. Local: `.env` (gitignored). CI: GitHub Actions secrets/vars. Production: Kubernetes Secrets + ConfigMaps. See `ENV_VARS.md`.
+All configuration via environment variables. Local: `.env` (gitignored). CI: GitHub Actions secrets/vars. Production: Kubernetes Secrets + ConfigMaps. See `12-ENV-VARS.md`.

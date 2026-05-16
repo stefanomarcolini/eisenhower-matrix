@@ -41,7 +41,7 @@ If free-text search is added to task queries, use Spring Data JPA `Specification
    findByIdAndTenantIdAndUserId(UUID id, UUID tenantId, UUID userId)
    ```
    The currently-authenticated user's `userId` is read from the validated JWT — never from the request body or query param.
-3. **404, not 403:** Cross-tenant and cross-user access returns `404` to prevent enumeration. See `MULTI_TENANCY.md §7`.
+3. **404, not 403:** Cross-tenant and cross-user access returns `404` to prevent enumeration. See `08-MULTI-TENANCY.md §7`.
 
 **Admin endpoints:** `GET /api/v1/admin/**` intentionally disable the tenant filter. These are guarded by `@PreAuthorize("hasRole('ADMIN')")`.
 
@@ -52,11 +52,11 @@ If free-text search is added to task queries, use Spring Data JPA `Specification
 **Threat:** Weak credentials, JWT vulnerabilities, session hijacking.
 
 **How addressed:**
-- BCrypt cost 12 for passwords. See `PASSWORD_POLICY.md §5`.
+- BCrypt cost 12 for passwords. See `11-PASSWORD-POLICY.md §5`.
 - HMAC-SHA256 for JWTs with a minimum 32-byte key (`INTERNAL_JWT_SECRET`).
-- **Algorithm pinning:** Core API's JWT validator must explicitly specify `HS256` and reject any other algorithm, including `none`. See `CODING_PATTERNS.md §15`.
+- **Algorithm pinning:** Core API's JWT validator must explicitly specify `HS256` and reject any other algorithm, including `none`. See `09-CODING-PATTERNS.md §15`.
 - **Full claims validation:** Validate `iss` (must match `APP_BASE_URL`), `exp` (must be in the future), and `sub` (must resolve to an existing user). Signature alone is insufficient.
-- TOTP/MFA as a second factor. See `AUTH_CONFIG.md §7`.
+- TOTP/MFA as a second factor. See `07-AUTH-CONFIG.md §7`.
 - Rate limiting on login and MFA verify. See rate limiting table below.
 - Session cookie: `HttpOnly`, `Secure` (prod), `SameSite=Lax`. No JWT in browser storage.
 - Session fixation: Spring Security migrates the session on successful authentication by default (`sessionFixation().migrateSession()`). Explicit logout invalidates the session (`invalidateHttpSession(true)`).
@@ -77,7 +77,7 @@ Two distinct DTO types per resource — one for input, one for output:
 
 Annotate request DTOs with `@JsonIgnoreProperties(ignoreUnknown = true)` to silently drop extra fields. Annotate sensitive entity fields with `@JsonProperty(access = Access.WRITE_ONLY)` and `@ToString.Exclude` (Lombok) to prevent accidental serialisation.
 
-See `CODING_PATTERNS.md §14` for the DTO pattern.
+See `09-CODING-PATTERNS.md §14` for the DTO pattern.
 
 ---
 
@@ -91,10 +91,10 @@ See `CODING_PATTERNS.md §14` for the DTO pattern.
 | :--- | :--- | :--- |
 | Pagination max | 100 items per page | Enforced in service layer; `@Max(100)` on `limit` param |
 | Request body size | 256 KB | `server.tomcat.max-http-form-post-size` + `spring.servlet.multipart.max-request-size` in `application.yml` |
-| Rate limiting — login | 5 req / min per IP | `CODING_PATTERNS.md §6` |
-| Rate limiting — forgot-password | 3 req / 15 min per email | `CODING_PATTERNS.md §6` |
-| Rate limiting — all `/auth/**` | 20 req / min per IP | `CODING_PATTERNS.md §6` |
-| Rate limiting — MFA verify | 5 attempts per session | `CODING_PATTERNS.md §17` |
+| Rate limiting — login | 5 req / min per IP | `09-CODING-PATTERNS.md §6` |
+| Rate limiting — forgot-password | 3 req / 15 min per email | `09-CODING-PATTERNS.md §6` |
+| Rate limiting — all `/auth/**` | 20 req / min per IP | `09-CODING-PATTERNS.md §6` |
+| Rate limiting — MFA verify | 5 attempts per session | `09-CODING-PATTERNS.md §17` |
 | DB connection pool | max 10 connections | `spring.datasource.hikari.maximum-pool-size` |
 
 ---
@@ -124,7 +124,7 @@ See `CODING_PATTERNS.md §14` for the DTO pattern.
 | Password reset submit | Token is single-use and expires in 1h; no brute force possible (SHA-256 hash, 32-byte token = 2²⁵⁶ space) |
 | Registration | 20 req / min per IP (covered by all-`/auth/**` limit) |
 
-The MFA session lockout (5 failures → invalidate session) is implemented in the `/auth/mfa/verify` controller, not in the rate-limit interceptor, because it must track per-session state rather than per-IP. See `CODING_PATTERNS.md §17`.
+The MFA session lockout (5 failures → invalidate session) is implemented in the `/auth/mfa/verify` controller, not in the rate-limit interceptor, because it must track per-session state rather than per-IP. See `09-CODING-PATTERNS.md §17`.
 
 ---
 
@@ -150,8 +150,8 @@ The MFA session lockout (5 failures → invalidate session) is implemented in th
 | Actuator endpoints | Only `health` and `info` exposed externally |
 | Internal Actuator endpoints | Restricted to internal network |
 | `X-Powered-By` header | Spring Boot does not emit this by default |
-| HTTPS in production | TLS at ingress/LB layer — documented in `AUTH_CONFIG.md §13` |
-| OAuth2 client IDs default | Set to `:disabled` — BFF starts cleanly without crashing on missing env vars (see `CODING_PATTERNS.md §13`) |
+| HTTPS in production | TLS at ingress/LB layer — documented in `07-AUTH-CONFIG.md §13` |
+| OAuth2 client IDs default | Set to `:disabled` — BFF starts cleanly without crashing on missing env vars (see `09-CODING-PATTERNS.md §13`) |
 
 ---
 
@@ -161,7 +161,7 @@ The MFA session lockout (5 failures → invalidate session) is implemented in th
 
 **How addressed:**
 - `tm-core-api/api-spec/openapi.yaml` is the single source of truth. Interfaces are generated from it — no controller can exist that is not in the spec.
-- `/internal/**` endpoints are deliberately excluded from the public OpenAPI spec. They are documented in `API_CONTRACT.md` only.
+- `/internal/**` endpoints are deliberately excluded from the public OpenAPI spec. They are documented in `06-API-CONTRACT.md` only.
 - API versioned under `/api/v1/`. New major versions get a new prefix (`/api/v2/`); old versions are deprecated via response headers before removal.
 - CI pipeline validates the OpenAPI spec on every push.
 
@@ -196,7 +196,7 @@ private String sanitiseRedirectTarget(String target) {
 - Never log request bodies for `/auth/**` and `/internal/auth/**` at any log level.
 - Annotate sensitive entity fields with `@ToString.Exclude` (Lombok) to prevent accidental inclusion in log lines.
 - Annotate sensitive DTO fields with `@JsonProperty(access = Access.WRITE_ONLY)`.
-- MDC is cleared in `TenantInterceptor.afterCompletion()` to prevent tenant/user context leaking across requests. See `OBSERVABILITY.md §1`.
+- MDC is cleared in `TenantInterceptor.afterCompletion()` to prevent tenant/user context leaking across requests. See `13-OBSERVABILITY.md §1`.
 
 ### Email Enumeration on Registration
 
@@ -207,7 +207,7 @@ private String sanitiseRedirectTarget(String target) {
 > **Mitigation in place:** `POST /auth/forgot-password` always returns `200` regardless of email existence — the higher-value enumeration target is protected.
 
 ### Request Smuggling / Header Injection
-The BFF proxy must strip hop-by-hop headers and must not forward the `X-Tenant-ID` header from external clients. The proxy reads `tenantId` exclusively from the session. See `CODING_PATTERNS.md §5`.
+The BFF proxy must strip hop-by-hop headers and must not forward the `X-Tenant-ID` header from external clients. The proxy reads `tenantId` exclusively from the session. See `09-CODING-PATTERNS.md §5`.
 
 ### Dependency Vulnerabilities
-Automated scanning in every CI pipeline run. See `REPOSITORIES_AND_CICD.md §2` (Stage 2: checksum-verified Grype dependency scans + `npm audit`; Stage 4: Syft SBOM + Grype image scan).
+Automated scanning in every CI pipeline run. See `15-REPOSITORIES-AND-CICD.md §2` (Stage 2: checksum-verified Grype dependency scans + `npm audit`; Stage 4: Syft SBOM + Grype image scan).

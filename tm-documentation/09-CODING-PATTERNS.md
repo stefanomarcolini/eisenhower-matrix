@@ -306,7 +306,7 @@ public class JwtRefreshService {
 }
 ```
 
-The Core API `/internal/auth/refresh` endpoint (see `API_CONTRACT.md`) accepts `{ userId }` and returns a fresh JWT using the same claims from the current user record.
+The Core API `/internal/auth/refresh` endpoint (see `06-API-CONTRACT.md`) accepts `{ userId }` and returns a fresh JWT using the same claims from the current user record.
 
 ### `extractPath` helper
 ```java
@@ -635,9 +635,9 @@ databaseChangeLog:
         - delete: { tableName: tenants, where: "id='00000000-0000-0000-0000-000000000001'" }
 ```
 
-`BOOTSTRAP_ADMIN_BCRYPT_HASH` is a Liquibase substitution variable injected via env var (BCrypt hash of the initial admin password). **Change the password immediately after first login.** Document the initial credentials in `GETTING_STARTED.md §6` for local dev.
+`BOOTSTRAP_ADMIN_BCRYPT_HASH` is a Liquibase substitution variable injected via env var (BCrypt hash of the initial admin password). **Change the password immediately after first login.** Document the initial credentials in `03-GETTING-STARTED.md §6` for local dev.
 
-Add `BOOTSTRAP_ADMIN_BCRYPT_HASH` to `ENV_VARS.md` under `tm-db-schema`.
+Add `BOOTSTRAP_ADMIN_BCRYPT_HASH` to `12-ENV-VARS.md` under `tm-db-schema`.
 
 ---
 
@@ -1119,7 +1119,7 @@ public class MfaService {
 }
 ```
 
-**Key generation** — generate with `openssl rand -base64 32` and set as `MFA_ENCRYPTION_KEY`. The `ENV_VARS.md` entry includes this command. If the key is ever rotated, all existing `mfa_secret` values must be re-encrypted in a migration script before the new key is deployed.
+**Key generation** — generate with `openssl rand -base64 32` and set as `MFA_ENCRYPTION_KEY`. The `12-ENV-VARS.md` entry includes this command. If the key is ever rotated, all existing `mfa_secret` values must be re-encrypted in a migration script before the new key is deployed.
 
 ---
 
@@ -1162,7 +1162,7 @@ public void deleteTask(UUID id, UUID tenantId, UUID userId) {
 ### `TaskHistoryService` — write-only in v1
 Records a row in `task_history` on every state transition. Call it from `TaskService` on every state change and from `ScheduledJobService` for scheduler-driven transitions. There is no read API for task history in v1.
 
-The `TaskHistory` entity must carry the Hibernate tenant filter (consistent with `Task` — see `MULTI_TENANCY.md §4`):
+The `TaskHistory` entity must carry the Hibernate tenant filter (consistent with `Task` — see `08-MULTI-TENANCY.md §4`):
 ```java
 @Filter(name = "tenantFilter", condition = "tenant_id = :tenantId")
 @Entity

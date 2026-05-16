@@ -1,7 +1,7 @@
 # Technical Architecture & Standards
 
 ## 1. Backend Service (Core API)
-- **Runtime:** Java 17+ / Spring Boot 3.x.
+- **Runtime:** Java 17 / Spring Boot 4.x.
 - **Patterns:** DDD, SOLID, DRY.
 - **Documentation:** OpenAPI v3 (YAML-first). Generate interfaces via `openapi-generator-maven-plugin`.
 - **Database:** PostgreSQL 17 (Liquibase for migrations).
@@ -11,27 +11,27 @@ Two sub-layers in one container:
 - **BFF (Spring Boot):** OAuth2/OIDC and local auth flows; Redis-backed session; proxies `/api/**` to Core API injecting `Authorization: Bearer` and `X-Tenant-ID`.
 - **Client UI (React + TypeScript + Vite):** `@zxcvbn-ts/core` (+ language packs) for password strength scoring; renders the 3×3 task matrix, settings, and the password age warning banner.
 
-**Session scalability:** `spring-session-data-redis` externalises all session state — BFF pods are stateless for load-balancing. See `AUTH_CONFIG.md §8`.
+**Session scalability:** `spring-session-data-redis` externalises all session state — BFF pods are stateless for load-balancing. See `07-AUTH-CONFIG.md §8`.
 
 ## 3. Security & Auth
-Two auth methods (OAuth2/OIDC and local email+password) both produce an app-issued JWT stored in the BFF session. Core API is a single-issuer resource server validating only its own JWTs. See `AUTH_CONFIG.md`.
+Two auth methods (OAuth2/OIDC and local email+password) both produce an app-issued JWT stored in the BFF session. Core API is a single-issuer resource server validating only its own JWTs. See `07-AUTH-CONFIG.md`.
 
-**Authorization approach:** Guard endpoints with `@PreAuthorize` using authority literals (e.g., `"hasAuthority('ROLE_ADMIN')"`) — not role-name string comparisons buried in service code. This keeps authorization logic at the controller boundary and makes it straightforward to extend the role model beyond `STANDARD`/`ADMIN` without a code-wide refactor. See `PROJECT_OVERVIEW.md §4` for the role extension path.
+**Authorization approach:** Guard endpoints with `@PreAuthorize` using authority literals (e.g., `"hasAuthority('ROLE_ADMIN')"`) — not role-name string comparisons buried in service code. This keeps authorization logic at the controller boundary and makes it straightforward to extend the role model beyond `STANDARD`/`ADMIN` without a code-wide refactor. See `01-PROJECT-OVERVIEW.md §4` for the role extension path.
 
 ## 4. Email Service
-Spring Mail for password reset. Mailpit in dev (no credentials needed). See `INFRASTRUCTURE_SPEC.md §5`.
+Spring Mail for password reset. Mailpit in dev (no credentials needed). See `14-INFRASTRUCTURE-SPEC.md §5`.
 
 ## 5. Testing Strategy
 - **Unit:** JUnit 5 + Mockito.
-- **Integration — Core API:** `@SpringBootTest` + Testcontainers (PostgreSQL 17, `@ServiceConnection`). WireMock (`org.wiremock.integrations:wiremock-spring-boot`) stubs outbound HTTP.
+- **Integration — Core API:** `@SpringBootTest` + Testcontainers (PostgreSQL 17, static container + `@DynamicPropertySource`). WireMock (`org.wiremock.integrations:wiremock-spring-boot`) stubs outbound HTTP.
 - **Integration — BFF:** WireMock stubs Core API and mock IdP.
 - **E2E:** Selenium in `tm-orchestrator/e2e/`.
 
 ## 6. Multi-Tenancy
-Row-level tenancy (`tenant_id` on all user-data tables). See `MULTI_TENANCY.md`.
+Row-level tenancy (`tenant_id` on all user-data tables). See `08-MULTI-TENANCY.md`.
 
 ## 7. Observability
-Structured JSON logging (prod), audit log, Spring Actuator (health + info only). See `OBSERVABILITY.md`.
+Structured JSON logging (prod), audit log, Spring Actuator (health + info only). See `13-OBSERVABILITY.md`.
 
 ## 8. Dependencies & Licensing
 
@@ -39,20 +39,20 @@ All dependencies must be open-source with a permissive licence (Apache 2.0, MIT,
 
 | Library | Version | Scope | Licence | Notes |
 | :--- | :--- | :--- | :--- | :--- |
-| Spring Boot (all starters) | 3.4.5 | Java | Apache 2.0 | Upgraded from 3.2.5 to fix HIGH/CRITICAL CVEs. Explicit BOM overrides required: `tomcat.version=10.1.45`, `spring-security.version=6.4.10`, `spring-framework.version=6.2.11`, `jackson-bom.version=2.18.6` — 3.4.5 ships older patch versions for all four. |
+| Spring Boot (all starters) | 4.0.6 | Java | Apache 2.0 | Explicit BOM overrides pin security-sensitive transitive deps: `tomcat-embed-core.version=11.0.21`, `spring-security-web.version=7.0.5`, `jackson-bom.version=3.1.3`, `commons-io.version=2.22.0`. |
 | Hibernate (via Spring Data JPA) | 6.4.x (BOM) | Java | LGPL 2.1 | |
 | Lombok | 1.18.32 (BOM) | Java | MIT | |
 | PostgreSQL JDBC Driver | 42.7.7 (BOM override) | Java | BSD 2-clause | Pinned to 42.7.7 to address CVE-2025-49146 in 42.7.5 |
 | Liquibase Community Edition | 5.0.2 | Java | Apache 2.0 | Community only — not Pro/Enterprise. Docker image tag `5.0` (aligned with `tm-db-schema/Dockerfile`). |
 | `dev.samstevens.totp:totp` | 1.7.1 | Java | MIT | TOTP/MFA |
 | `net.logstash.logback:logstash-logback-encoder` | 7.4 | Java | Apache 2.0 | Structured JSON logs |
-| `com.bucket4j:bucket4j-core` | 8.7.0 | Java | Apache 2.0 | **Core module only** — the enterprise module is commercial |
+| `com.bucket4j:bucket4j-core` | 8.10.1 | Java | Apache 2.0 | **Core module only** — the enterprise module is commercial |
 | `org.apache.httpcomponents.client5:httpclient5` | 5.x (BOM) | Java | Apache 2.0 | BFF only — Spring Boot auto-selects `HttpComponentsClientHttpRequestFactory` over `SimpleClientHttpRequestFactory` when this is on the classpath, fixing 4xx POST error-response streaming |
 | `spring-session-data-redis` | (BOM) | Java | Apache 2.0 | BFF session store — requires `spring-boot-starter-data-redis` |
 | `openapi-generator-maven-plugin` | 7.4.0 | Java | Apache 2.0 | |
 | JUnit 5 | 5.10.x (BOM) | Java (test) | EPL 2.0 | |
 | Mockito | 5.x (BOM) | Java (test) | MIT | |
-| Testcontainers (postgresql, base) | 1.20.6 (overrides BOM 1.19.x) | Java (test) | MIT | Use static block + `@DynamicPropertySource` — **not** `@ServiceConnection` (CODING_PATTERNS.md §10, §13) |
+| Testcontainers (postgresql, base) | 1.20.6 (overrides BOM 1.19.x) | Java (test) | MIT | Use static block + `@DynamicPropertySource` — **not** `@ServiceConnection` (09-CODING-PATTERNS.md §10, §13) |
 | `org.wiremock.integrations:wiremock-spring-boot` | 3.3.0 | Java (test) | Apache 2.0 | |
 | `org.owasp:dependency-check-maven` | ~~9.1.0~~ removed | Java (CI) | Apache 2.0 | Removed from code pipelines — NVD API key requirement created unstable CI gating; replaced by Grype vulnerability scans. |
 | `org.seleniumhq.selenium:selenium-java` | 4.27.0 | Java (E2E test) | Apache 2.0 | Browser automation — `tm-orchestrator/e2e/` |
@@ -97,4 +97,4 @@ All dependencies must be open-source with a permissive licence (Apache 2.0, MIT,
 | `selenium/standalone-chrome` | latest | Infrastructure (E2E) | Apache 2.0 | Docker container — RemoteWebDriver endpoint at `:4444`, noVNC at `:7900` |
 
 ### Vulnerability Scanning
-Automated scanning runs in every CI pipeline — see `REPOSITORIES_AND_CICD.md §2` for pipeline stages. No image tag should use `latest` in production; pin to specific patch versions (e.g., `postgres:17.2-alpine`).
+Automated scanning runs in every CI pipeline — see `15-REPOSITORIES-AND-CICD.md §2` for pipeline stages. No image tag should use `latest` in production; pin to specific patch versions (e.g., `postgres:17.2-alpine`).

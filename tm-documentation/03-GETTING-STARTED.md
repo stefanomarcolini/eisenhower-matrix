@@ -30,7 +30,7 @@ cd eisenhower-matrix
 All modules are part of this single repository and share one root Git history.
 
 ### GitHub Actions secrets
-Add the secrets listed in `ENV_VARS.md §CI-Specific Secrets` to this repository (Settings -> Secrets -> Actions).
+Add the secrets listed in `12-ENV-VARS.md §CI-Specific Secrets` to this repository (Settings -> Secrets -> Actions).
 
 ---
 
@@ -75,7 +75,7 @@ docker-compose ps        # verify all services are healthy
 | `http://localhost:8025` | Mailpit — captured emails |
 | `http://localhost:9000` | Mock OAuth2 provider |
 
-For live-reload dev mode, see `DEVELOPMENT_ENV.md §6`.
+For live-reload dev mode, see `04-DEVELOPMENT-ENV.md §6`.
 
 ---
 
@@ -107,13 +107,13 @@ For live-reload dev mode, see `DEVELOPMENT_ENV.md §6`.
 
 ## 9. Stopping
 
-See `DEVELOPMENT_ENV.md §7`.
+See `04-DEVELOPMENT-ENV.md §7`.
 
 ---
 
 ## 10. Debugging
 
-See `OBSERVABILITY.md §4` for remote JVM debug, log viewing, DB/Redis access.
+See `13-OBSERVABILITY.md §4` for remote JVM debug, log viewing, DB/Redis access.
 
 ---
 

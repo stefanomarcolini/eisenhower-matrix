@@ -29,7 +29,7 @@ Runs in parallel with or immediately after Stage 1. Build fails if high/critical
 - **Node:** `npm audit --audit-level=high` (BFF frontend). Fails on high or critical findings.
 
 ### Stage 3: Integration Testing
-- **Core API:** `mvn verify` — real PostgreSQL 17 via Testcontainers (`@ServiceConnection`). WireMock stubs SMTP and any outbound HTTP.
+- **Core API:** `mvn verify` — real PostgreSQL 17 via Testcontainers (static container + `@DynamicPropertySource`). WireMock stubs SMTP and any outbound HTTP.
 - **BFF:** `mvn verify` — WireMock stubs Core API and mock IdP endpoints. No real Core API container.
 - **DB Schema:** `mvn verify` — applies all changesets to a fresh PostgreSQL 17 container; validates every changeset has a rollback block; runs `liquibase rollbackCount 1` for each.
 
@@ -59,13 +59,11 @@ No cross-repo dispatch secret is required for the trigger itself.
 
 #### GitHub Secrets / Variables
 - No cross-repo dispatch secret is required for E2E triggering.
-- GHCR image pulls still require one of these access models:
-  - package-level Actions read access from `tm-orchestrator` to `tm-db-schema`, `tm-core-api`, and `tm-ui-bff`, or
-  - `GHCR_USERNAME` (Actions variable) + `GHCR_TOKEN` (PAT secret with `read:packages`).
+- GHCR image pulls use `GHCR_TOKEN` (PAT secret with `read:packages`) with `GITHUB_TOKEN` as fallback. Set `GHCR_TOKEN` in repository Settings → Secrets and variables → Actions. See `12-ENV-VARS.md §CI-Specific Secrets`.
 
 ---
 
 ## 3. Versioning Strategy
 - **Git Tags** for releases.
 - **Release Drafter** GitHub Action automates changelogs from PR labels.
-- Helm chart versioned independently; published to `oci://ghcr.io/sm-task-manager/charts/task-manager`.
+- Helm chart versioned independently; published to `oci://ghcr.io/stefanomarcolini/charts/task-manager`.
