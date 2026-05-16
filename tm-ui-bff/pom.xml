@@ -39,7 +39,7 @@
     <docker.host>npipe:////./pipe/docker_engine</docker.host>
 
     <jackson-bom.version>3.1.1</jackson-bom.version>
-    <tomcat-embed-core.version>11.0.21</tomcat-embed-core.version>
+    <tomcat-embed-core.version>11.0.22</tomcat-embed-core.version>
     <spring-security-web.version>7.0.5</spring-security-web.version>
     <commons-compress>1.28.0</commons-compress>
     <commons-io.version>2.21.0</commons-io.version>

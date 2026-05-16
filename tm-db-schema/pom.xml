@@ -37,7 +37,7 @@
     <!-- Maven property defaults for the Liquibase Maven plugin.
          Override on the command line: mvn liquibase:update -DDB_HOST=myhost -->
     <DB_PORT>5432</DB_PORT>
-    <tomcat-embed-core.version>11.0.21</tomcat-embed-core.version>
+    <tomcat-embed-core.version>11.0.22</tomcat-embed-core.version>
   </properties>
 
   <dependencyManagement>
